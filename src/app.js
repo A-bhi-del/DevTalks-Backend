@@ -1,29 +1,16 @@
 const express = require("express");
+const { adminAuth, userAuth } = require("./utils/middlewares/auth");
 
 const app = express();
-app.use("/user", (req, res, next) => {
+
+
+app.get("/admin", adminAuth, (req, res, next) => {
+  console.log("Admin 1 is running");
+  res.send("Admin 1 response");
+})
+app.use("/user",userAuth, (req, res, next) => {
   console.log("user 1 is running");
-  // res.send("user 1 response");
-  next();
-}, 
-(req, res, next) => {
-  console.log("user 2 is running");
-  // res.send("user 2 response");
-  next();
-}, 
-(req, res, next) => {
-  console.log("user 3 is running");
-  // res.send("user 3 response");
-  next();
-}, 
-(req, res, next) => {
-  console.log("user 4 is running");
-  // res.send("user 4 response");
-  next();
-}, 
-(req, res, next) => {
-  console.log("user 5 is running");
-  // res.send("user 5 response");
+  res.send("user 1 response");
   // next();
 })
 
