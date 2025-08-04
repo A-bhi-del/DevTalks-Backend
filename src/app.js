@@ -5,18 +5,36 @@ const dotenv = require("dotenv");
 dotenv.config({});
 const cors = require("cors");
 const User = require("./models/user.js");
-
+const { validateSignupData } = require("./utils/validation.js");
+const bcrypt = require("bcryptjs");
+const validator = require("validator");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 
 app.use(cors({
   origin: "http://localhost:5173",
   credentials: true,
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 app.post("/signup", async (req, res) => {
-  const user = new User(req.body);
 
   try{
+    //validation
+  validateSignupData(req);
+  const {password, emailId, firstName, lastName, age, gender} = req.body;
+  const hashPassword =await bcrypt.hash(password, 10);
+
+  const user = new User({
+    firstName,
+    lastName,
+    emailId,
+    password: hashPassword,
+    age,
+    gender,
+  });
+
     await user.save();
     res.status(200).send("User is added successfully");
   } catch(err){
@@ -24,6 +42,50 @@ app.post("/signup", async (req, res) => {
   }
 })
 
+app.post("/login", async (req, res) => {
+  try {
+    const {emailId, password} = req.body;
+    if(!validator.isEmail(emailId)){
+      throw new Error("emailId is not valid");
+    }
+
+    const user = await User.findOne({emailId : emailId}).select("+password");
+    if(!user){
+      throw new Error("User not found");
+    }
+
+    const passwordisValid = await bcrypt.compare(password, user.password);
+    if(passwordisValid){
+      const token = await jwt.sign({_id: user._id}, "sgvd@2873b");
+      // console.log(token);
+      res.cookie("token", token);
+      res.status(200).send("Login successfully");
+    } else {
+      throw new Error("Invalid credentials");
+    }
+
+  } catch(err) {
+    res.status(500).send("Error in logging in:" + err.message);
+  }
+})
+
+app.get("/profile", async (req, res) => {
+  try{
+    const cookies = req.cookies;
+    const {token} = cookies;
+    if(!token){
+      throw new Error("user is not logged in");
+    }
+    const decodedMessage = await jwt.verify(token, "sgvd@2873b");
+    const {_id} = decodedMessage;
+    const user = await User.findById(_id);
+    // console.log("Login User Id is :" + _id);
+    res.send(user);
+  }catch(err){
+    res.status(500).send("Error in fetching user:" + err.message);
+  }
+})
+  
 app.get("/user", async (req, res) => {
   const email = req.body.emailId;
   try{
@@ -85,7 +147,8 @@ app.patch("/edit/:userId", async (req, res) => {
     res.status(500).send("Error in updating user:" + err.message);
   }
 })
-  
+
+
 
 // app.post("/signup", async (req, res) => {
 //   try {

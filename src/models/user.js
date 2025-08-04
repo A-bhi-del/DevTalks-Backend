@@ -9,12 +9,6 @@ const userSchema = new mongoose.Schema({
     lastName: {
         type: String,
     },
-
-    userName : {
-        type: String,
-        unique: true,
-        required: true,
-    },
     emailId: {
         type: String,
         required: true,
@@ -41,6 +35,11 @@ const userSchema = new mongoose.Schema({
     age: {
         type: Number,
         min: 18,
+        validate(value) {
+            if(value < 18){
+                throw new Error("Age must be greater than 18");
+            }
+        }
     },
     gender: {
         type: String,
