@@ -2,15 +2,18 @@ const mongoose = require("mongoose");
 const connectionSchema = new mongoose.Schema({
     toUserId: {
         type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
         required: true
     },
     fromUserId: {
-        type: mongoose.Schema.Types.ObjectId
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User", // ref is use to make a relation between two models
+
     },
     connectionRequestMessage: {
         type: String,
         enum : {
-            values: ["ignored", "accepted", "rejected", "interested", "Blocked"],
+            values: ["ignored", "accepted", "rejected", "interested"],
             message: `{VALUE} is not supported`
         }
 

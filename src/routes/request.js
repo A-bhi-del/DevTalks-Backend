@@ -68,7 +68,7 @@ requestRouter.post("/request/receive/:status/:requestId", userAuth, async (req, 
     // const fromUserId = await connectionRequest.findById(requestId);
     // const sender = await User.findById({fromUserId});
 
-    const isAllowed = ["accepted", "rejected", "Blocked"];
+    const isAllowed = ["accepted", "rejected"];
     if (!isAllowed.includes(status)) {
       return res.status(400).send("Invalid status Try again");
     }
