@@ -2,6 +2,7 @@ const express = require("express");
 const userRouter = express.Router();
 const { userAuth } = require("../middlewares/auth");
 const { connectionRequest } = require("../models/connection");
+const User = require("../models/user");
 
 const USER_DATA = "firstName lastName gender age photoUrl about skills";
 
@@ -56,6 +57,41 @@ userRouter.get("/user/requests", userAuth, async (req, res) => {
     } catch (err) {
         res.status(500).send("Erroe message : " + err.message);
     }
+})
+
+
+userRouter.get("/user/feed", userAuth, async (req, res) => {
+     try{
+
+        const loggedInuser = req.user;
+
+        const Requests = await connectionRequest.find({
+            $or:[
+                {fromUserId: loggedInuser._id},
+                {toUserId: loggedInuser._id}
+            ]
+        }).select("fromUserId toUserId");
+
+        const HidConnectionRequest = new Set();
+        Requests.forEach((req) => {
+            HidConnectionRequest.add(req.fromUserId.toString());
+            HidConnectionRequest.add(req.toUserId.toString());
+        });
+
+        const users_that_can_be_seen_by_a_loggedinuser = await User.find({
+            // Array.form conver the set into Array datastructure
+            // $ne means "not equal"  or $nin means "not in"
+            $and:[
+                {_id : {$nin : Array.from(HidConnectionRequest)}},
+                {_id: {$ne : loggedInuser._id}}
+            ]
+        }).select(USER_DATA);
+        // console.log(HidConnectionRequest);
+        res.send(users_that_can_be_seen_by_a_loggedinuser);
+
+     }catch(err){
+        res.status(500).send("Error in fetching feed:" + err.message);
+     }
 })
 
 module.exports = userRouter;
