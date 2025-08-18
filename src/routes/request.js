@@ -3,6 +3,7 @@ const { userAuth } = require("../middlewares/auth");
 const { connectionRequest } = require("../models/connection");
 const requestRouter = express.Router();
 const User = require("../models/user");
+const { default: axios } = require("axios");
 
 
 requestRouter.post("/request/send/:status/:toUserId", userAuth, async (req, res) => {
@@ -64,7 +65,7 @@ requestRouter.post("/request/receive/:status/:requestId", userAuth, async (req, 
     // const receiver = await User.findById(req.params.fromUserId);
     // const requestId = req.params.requestId;
     // const status = req.params.status;
-    const {status, requestId} = req.params;
+    const { status, requestId } = req.params;
     // const fromUserId = await connectionRequest.findById(requestId);
     // const sender = await User.findById({fromUserId});
 
@@ -79,7 +80,7 @@ requestRouter.post("/request/receive/:status/:requestId", userAuth, async (req, 
       toUserId: loggedInuser._id,
       connectionRequestMessage: "interested"
     });
-    
+
 
 
     if (!connectionRequestExist) {
@@ -98,6 +99,19 @@ requestRouter.post("/request/receive/:status/:requestId", userAuth, async (req, 
 
   } catch (err) {
     res.status(500).send("Error in getting request : " + err.message);
+  }
+})
+
+requestRouter.get("/api/devto", async(req, res) => {
+  try{
+    const articles = await axios.get("https://dev.to/api/articles?per_page=10");
+    if(!articles){
+      res.status(401).send("error in fetching articles");
+    }
+    res.status(200).send(articles.data);
+
+  }catch(err){
+    res.status(500).json("error in fetching articles :" + err.message);
   }
 })
 

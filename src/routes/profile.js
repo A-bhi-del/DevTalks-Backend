@@ -37,11 +37,11 @@ profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
 
 
 profileRouter.patch("/profile/forget-password", async (req, res) => {
-  try{
-    const {emailId, password} = req.body;
+  try {
+    const { emailId, password } = req.body;
 
-    const finduser = await User.findOne({emailId: emailId});
-    if(!finduser){
+    const finduser = await User.findOne({ emailId: emailId });
+    if (!finduser) {
       throw new Error("user not found");
     }
     console.log(finduser);
@@ -53,10 +53,10 @@ profileRouter.patch("/profile/forget-password", async (req, res) => {
     finduser.save();
     console.log(finduser);
     res.json({
-      message:`${finduser.firstName} your password is updated successfully`,
+      message: `${finduser.firstName} your password is updated successfully`,
       data: finduser
     })
-  } catch(err){
+  } catch (err) {
     res.status(500).send("Error im updating password:" + err.message);
   }
 })

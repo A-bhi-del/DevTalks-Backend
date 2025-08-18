@@ -6,11 +6,13 @@ const jwt = require('jsonwebtoken');
 const userSchema = new mongoose.Schema({
     firstName: {
         type: String,
-        required : true,
+        required: true,
     },
+
     lastName: {
         type: String,
     },
+
     emailId: {
         type: String,
         required: true,
@@ -18,64 +20,73 @@ const userSchema = new mongoose.Schema({
         trim: true,
 
         validate(value) {
-            if(!validator.isEmail(value)){
+            if (!validator.isEmail(value)) {
                 throw new Error("invalid email");
             }
         }
-    }, 
+    },
+
     password: {
         type: String,
         required: true,
         minLength: 8,
-        select : false, // Exclude password from queries by default
-        validate(value){
-            if(!validator.isStrongPassword(value)){
+        select: false, // Exclude password from queries by default
+        validate(value) {
+            if (!validator.isStrongPassword(value)) {
                 throw new Error("Password must be strong");
             }
         }
     },
+
     age: {
         type: Number,
         min: 18,
+        max: 70,
         validate(value) {
-            if(value < 18){
+            if (value < 18) {
                 throw new Error("Age must be greater than 18");
             }
         }
     },
+
     gender: {
         type: String,
         // validate function always works for only when we create a new user it does not work for update , delete . if you want that is work for update and delete also than we should do enable the calidate
-        // validate(value) {
-        //     if(!["male", "female", "other"].includes(value)){
-        //         throw new Error("Invalid gender");
-        //     }
-        // }
+        validate(value) {
+            if(!["male", "female", "other"].includes(value)){
+                throw new Error("Invalid gender");
+            }
+        }
     },
+
     photoUrl: {
         type: String,
         default: "https://example.com/default-profile.png",
-        validate(value){
-            if(!validator.isURL(value)){
+        validate(value) {
+            if (!validator.isURL(value)) {
                 throw new Error("Invalid URL for photo");
             }
         }
     },
+
     about: {
         type: String,
         default: "Hello, i am user of DevTinder",
     },
-    skills: {
-        type : [String],
-    }
-},
-{
-    timestamps: true, // Automatically adds createdAt and updatedAt fields
-})
 
-userSchema.methods.getJWT =  async function () {
+    skills: {
+        type: [String],
+    }
+
+},
+
+    {
+        timestamps: true, // Automatically adds createdAt and updatedAt fields
+    })
+
+userSchema.methods.getJWT = async function () {
     const user = this;
-    const token = await jwt.sign({_id: user._id}, "sgvd@2873b", {expiresIn: "10d"});
+    const token = await jwt.sign({ _id: user._id }, "sgvd@2873b", { expiresIn: "10d" });
     return token;
 }
 

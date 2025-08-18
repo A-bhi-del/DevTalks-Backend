@@ -12,24 +12,24 @@ const connectionSchema = new mongoose.Schema({
     },
     connectionRequestMessage: {
         type: String,
-        enum : {
+        enum: {
             values: ["ignored", "accepted", "rejected", "interested"],
             message: `{VALUE} is not supported`
         }
 
     }
 },
-{
-    timestamps: true,
-})
+    {
+        timestamps: true,
+    })
 
 // compound indexing to get result quickly when we fetch from database
-connectionSchema.index({fromUserId : 1, toUserId : 1});
+connectionSchema.index({ fromUserId: 1, toUserId: 1 });
 // Pre ka use hai... ki validation check before saving the data
-connectionSchema.pre("save", function(next) {
+connectionSchema.pre("save", function (next) {
     const connectionRequest = this;
     // to use equals() function we have to use toUserId and fromUserId to be in objectId type
-    if(connectionRequest.fromUserId.equals(connectionRequest.toUserId)){
+    if (connectionRequest.fromUserId.equals(connectionRequest.toUserId)) {
         throw new Error("User cannot connect with itself");
     }
     next();
@@ -39,4 +39,5 @@ const connectionRequest = new mongoose.model("ConnectionRequest", connectionSche
 
 
 module.exports = {
-    connectionRequest}
+    connectionRequest
+}
