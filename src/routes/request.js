@@ -104,7 +104,7 @@ requestRouter.post("/request/receive/:status/:requestId", userAuth, async (req, 
 
 requestRouter.get("/api/devto", async(req, res) => {
   try{
-    const articles = await axios.get("https://dev.to/api/articles?per_page=10");
+    const articles = await axios.get("https://dev.to/api/articles?per_page=30");
     if(!articles){
       res.status(401).send("error in fetching articles");
     }
