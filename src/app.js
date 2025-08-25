@@ -2,6 +2,8 @@ const express = require("express");
 const connectDB = require("./config/database.js");
 const app = express();
 const cookieParser = require("cookie-parser");
+const socketCreation = require("./utils/socket.js");
+const http = require("http");
 const cors = require("cors");
 require("dotenv").config();
 
@@ -24,11 +26,15 @@ app.use("/", profileRouter);
 app.use("/", requestRouter);
 app.use("/", userRouter);
 
+const server = http.createServer(app);
+socketCreation(server);
+
 
 connectDB()
 .then(() => {
     console.log("MongoDB is connected");
-    app.listen(3000, () => {
+    const PORT = process.env.PORT || 3000;
+    server.listen(PORT, () => {
       console.log('Server is running on port 3000');
     });
 })

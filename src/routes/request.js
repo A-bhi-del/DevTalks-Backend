@@ -48,6 +48,14 @@ requestRouter.post("/request/send/:status/:toUserId", userAuth, async (req, res)
 
     // Here we save the connection request
     const data = await connectRequestsent.save();
+    
+    if (status === "interested") {
+    await sendEmail(
+        id_is_exist.email,   // jisko request gayi uska email
+        "Someone is interested in you 🎉",
+        `${user.firstName} is interested in your profile on Dev.Talks!`
+      );
+    }
     res.json({
       message: `${user.firstName} sent connection request to ${sender.firstName}`,
       data,
