@@ -22,6 +22,10 @@ const requestRouter = require("./routes/request.js");
 const userRouter = require("./routes/user.js");
 const chatRouter = require("./routes/chatrouter.js");
 
+chatRouter.use((req, res, next) => {
+  console.log("Chat Router hit for:", req.method, req.originalUrl);
+  next();
+});
 
 app.use("/" , authRouter);
 app.use("/", profileRouter);

@@ -34,7 +34,7 @@ userRouter.get("/user/connections", userAuth, async (req, res) => {
         });
 
     } catch (err) {
-        res.status(500).send("Erroe message : " + err.message);
+        res.status(500).send("Error message : " + err.message);
     }
 })
 
