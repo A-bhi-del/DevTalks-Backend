@@ -11,10 +11,11 @@ app.use(cors({
   origin: [
     'https://dev-talks-frontend-5f7l.vercel.app',  // Production
     'https://dev-talks-frontend-5f7l-rcypxnt4l-a-bhi-dels-projects.vercel.app', // Preview
-    'http://localhost:3000' // Local development
+    'http://localhost:5173' // Local development on port 5173
   ],
   credentials: true
 }));
+
 app.use(express.json());
 app.use(cookieParser());
 
