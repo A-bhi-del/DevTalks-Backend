@@ -7,12 +7,14 @@ const http = require("http");
 const cors = require("cors");
 require("dotenv").config();
 
-app.use(cors(
-  {
-    origin:  "https://dev-talks-frontend-5f7l-rcypxnt4l-a-bhi-dels-projects.vercel.app",
-    credentials: true
-  }
-))
+app.use(cors({
+  origin: [
+    'https://dev-talks-frontend-5f7l.vercel.app',  // Production
+    'https://dev-talks-frontend-5f7l-rcypxnt4l-a-bhi-dels-projects.vercel.app', // Preview
+    'http://localhost:3000' // Local development
+  ],
+  credentials: true
+}));
 app.use(express.json());
 app.use(cookieParser());
 
