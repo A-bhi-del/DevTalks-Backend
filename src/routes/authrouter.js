@@ -26,7 +26,7 @@ authRouter.post("/signup", async (req, res) => {
         res.cookie("token", token, {
             expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
         })
-        
+
         res.status(200).json({
             message: "User signed up successfully",
             data: savedUser
@@ -52,9 +52,16 @@ authRouter.post("/login", async (req, res) => {
         if (passwordisValid) {
             const token = await user.getJWT();
             // console.log(token);
+            // res.cookie("token", token, {
+            //     expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+            // });
             res.cookie("token", token, {
-                expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production', // only HTTPS in prod
+                sameSite: 'none', // cross-site cookies for Vercel frontend
+                expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
             });
+
             res.status(200).json({
                 message: "User logged in successfully",
                 data: user
