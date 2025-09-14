@@ -9,7 +9,7 @@ require("dotenv").config();
 
 app.use(cors(
   {
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "https://dev-talks-frontend-5f7l-rcypxnt4l-a-bhi-dels-projects.vercel.app"],
     credentials: true
   }
 ))

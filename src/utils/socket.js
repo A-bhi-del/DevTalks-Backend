@@ -1,71 +1,125 @@
-const socket = require("socket.io");
+const { Server } = require("socket.io");
 const { Chat } = require("../models/chat");
 const { connectionRequest } = require("../models/connection");
+const User = require("../models/user");
 
 const socketCreation = (server) => {
-    const io = socket(server, {
+    const io = new Server(server, {
         cors: {
-            origin: "http://localhost:5173"
-        }
-    })
+            origin: "http://localhost:5173",
+            credentials: true,
+        },
+    });
 
-    io.on("connection", (socket) => {
-        socket.on("joinchat", ({firstName, userId, targetuserId}) => { 
+    io.on("connection", async (socket) => {
+        const { userId } = socket.handshake.auth;
+
+        // ✅ Validate userId
+        if (!userId || !userId.match(/^[0-9a-fA-F]{24}$/)) {
+            console.log("Invalid userId provided, closing connection:", userId);
+            socket.disconnect();
+            return;
+        }
+
+        socket.userId = userId;
+
+        try {
+            // ✅ Mark user as online
+            await User.findByIdAndUpdate(userId, {
+                isOnline: true,
+                lastSeen: null,
+            });
+        } catch (err) {
+            console.error("Error updating user status:", err);
+        }
+
+        console.log("User connected:", userId);
+
+        // Broadcast online status
+        socket.broadcast.emit("updateuserStatus", {
+            userId,
+            isOnline: true,
+            lastSeen: null,
+        });
+
+        // ✅ Join chat room
+        socket.on("joinChat", async ({ targetuserId }) => {
+            if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) return;
+
             const roomId = [userId, targetuserId].sort().join("_");
 
-            // console.log("User joined room: " + firstName + " " + roomId);
+            // Optional: check friendship
+            const friends = await connectionRequest.findOne({
+                $or: [
+                    { userId, targetuserId, status: "accepted" },
+                    { fromUserId: targetuserId, toUserId: userId, status: "accepted" },
+                ],
+            });
+            if (!friends) {
+                console.log("Users are not friends:", userId, targetuserId);
+                return;
+            }
+
             socket.join(roomId);
         });
 
-        socket.on("sendmessage", async ({userId, targetuserId, text, firstName, lastName}) => {
-            
-            // console.log("Message coming from " + firstName + ": " + text);
-            try{
-                const roomId = [userId, targetuserId].sort().join("_");
-                // Save message to database
+        // ✅ Send message
+        socket.on("sendMessage", async ({ targetuserId, text, firstName, lastName }) => {
+            if (!targetuserId || !text) return;
 
+            try {
+                const roomId = [userId, targetuserId].sort().join("_");
+
+                // Find or create chat
                 let chat = await Chat.findOne({
                     participants: { $all: [userId, targetuserId] },
-                })
+                });
 
-                
-                if(!chat){
+                if (!chat) {
                     chat = new Chat({
                         participants: [userId, targetuserId],
                         messages: [],
-                    })
+                    });
                 }
-                
+
                 chat.messages.push({
-                    SenderId : userId,
-                    text: text,
+                    SenderId: userId,
+                    text,
                     timestamp: new Date(),
-                })
-                
-                io.to(roomId).emit("receivemessage", { text, firstName, lastName });
+                });
+
                 await chat.save();
+
+                // Emit message to room
+                io.to(roomId).emit("receiveMessage", { text, firstName, lastName });
+            } catch (err) {
+                console.error("Message error:", err);
             }
-            catch(err){
-                console.error(err);
-            }
-            
         });
 
-        socket.on("disconnect", () => { });
-    })
-}
+        // ✅ Handle disconnect
+        socket.on("disconnect", async () => {
+            if (!socket.userId) return;
 
-module.exports= socketCreation;
+            const lastSeen = new Date();
+            try {
+                await User.findByIdAndUpdate(socket.userId, {
+                    isOnline: false,
+                    lastSeen,
+                });
+            } catch (err) {
+                console.error("Error updating user offline status:", err);
+            }
 
-// const friends = await connectionRequest.findOne({
-//     $or:[
-//         { userId,  targetuserId, status: "accepted" },
-//         { fromUserId: targetuserId, toUserId: userId, status: "accepted" }
-//     ]
-// })
+            socket.broadcast.emit("updateUserStatus", {
+                userId: socket.userId,
+                isOnline: false,
+                lastSeen,
+            });
 
-// if(!friends){
-//     // If no friends connection exists, handle accordingly
-//     res.status(403).json({ message: "You are not friends with this user." });
-//     return;
-// }
+            console.log("User disconnected:", socket.userId);
+        });
+    });
+};
+
+module.exports = socketCreation;

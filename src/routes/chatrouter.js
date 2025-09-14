@@ -31,74 +31,74 @@ chatRouter.get("/chat/:targetuserId", userAuth, async (req, res) => {
     }
 })
 
-chatRouter.delete("/chat/:messageId/for-everyone", userAuth, async (req, res) => {
-  try {
-    const { messageId } = req.params;
-    const userId = req.user._id;
+// chatRouter.delete("/chat/:messageId/for-everyone", userAuth, async (req, res) => {
+//   try {
+//     const { messageId } = req.params;
+//     const userId = req.user._id;
 
-    const updatedChat = await Chat.findOneAndUpdate(
-      {
-        "messages._id": messageId,
-        "messages.SenderId": userId, // Only sender can delete globally
-      },
-      {
-        $set: {
-          "messages.$.deletedForEveryone": true,
-          "messages.$.text": "This message was deleted",
-        },
-      },
-      { new: true }
-    );
+//     const updatedChat = await Chat.findOneAndUpdate(
+//       {
+//         "messages._id": messageId,
+//         "messages.SenderId": userId, // Only sender can delete globally
+//       },
+//       {
+//         $set: {
+//           "messages.$.deletedForEveryone": true,
+//           "messages.$.text": "This message was deleted",
+//         },
+//       },
+//       { new: true }
+//     );
 
-    if (!updatedChat) {
-      return res.status(404).json({
-        success: false,
-        message: "Message not found or you're not the sender",
-      });
-    }
+//     if (!updatedChat) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Message not found or you're not the sender",
+//       });
+//     }
 
-    res.status(200).json({
-      success: true,
-      message: "Message deleted for everyone",
-      chat: updatedChat,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+//     res.status(200).json({
+//       success: true,
+//       message: "Message deleted for everyone",
+//       chat: updatedChat,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 
-chatRouter.delete("/chat/:messageId/for-me", userAuth, async (req, res) => {
-    try {
-        const { messageId } = req.params;
-        const userId = req.user._id;
+// chatRouter.delete("/chat/:messageId/for-me", userAuth, async (req, res) => {
+//     try {
+//         const { messageId } = req.params;
+//         const userId = req.user._id;
 
-        const updatedChat = await Chat.findOneAndUpdate(
-            {
-                "messages._id": messageId,
-                participants: userId,
-            },
-            {
-                $addToSet: { "messages.$.deletedFor": userId }, // Add to deletedFor array
-            },
-            { new: true }
-        );
+//         const updatedChat = await Chat.findOneAndUpdate(
+//             {
+//                 "messages._id": messageId,
+//                 participants: userId,
+//             },
+//             {
+//                 $addToSet: { "messages.$.deletedFor": userId }, // Add to deletedFor array
+//             },
+//             { new: true }
+//         );
 
-        if (!updatedChat) {
-            return res.status(404).json({
-                success: false,
-                message: "Message not found or you are not a participant",
-            });
-        }
+//         if (!updatedChat) {
+//             return res.status(404).json({
+//                 success: false,
+//                 message: "Message not found or you are not a participant",
+//             });
+//         }
 
-        res.status(200).json({
-            success: true,
-            message: "Message deleted for you",
-            chat: updatedChat,
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+//         res.status(200).json({
+//             success: true,
+//             message: "Message deleted for you",
+//             chat: updatedChat,
+//         });
+//     } catch (err) {
+//         res.status(500).json({ error: err.message });
+//     }
+// });
 
 module.exports = chatRouter;

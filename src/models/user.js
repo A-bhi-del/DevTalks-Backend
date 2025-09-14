@@ -76,6 +76,16 @@ const userSchema = new mongoose.Schema({
 
     skills: {
         type: [String],
+    },
+
+    isOnline : { // for use is online or offline
+        type : Boolean,
+        default : false,
+    },
+
+    lastSeen : { // if user is offline than we can show last seen time
+        type : Date,
+        default : null,
     }
 
 },
