@@ -10,9 +10,18 @@ const userConnectionCounts = new Map();
 const socketCreation = (server) => {
     const io = new Server(server, {
         cors: {
-            origin: ["https://dev-talks-frontend-5f7l.vercel.app/", "https://dev-talks-frontend-5f7l-rcypxnt4l-a-bhi-dels-projects.vercel.app/", "http://localhost:5173"],
+            origin: [
+                "https://dev-talks-frontend-5f7l.vercel.app",
+                "https://dev-talks-frontend-5f7l-rcypxnt4l-a-bhi-dels-projects.vercel.app", 
+                "http://localhost:5173",
+                "http://127.0.0.1:5173"
+            ],
             credentials: true,
+            methods: ["GET", "POST"],
+            allowedHeaders: ["Content-Type", "Authorization", "Cookie"]
         },
+        transports: ["websocket", "polling"],
+        allowEIO3: true
     });
 
     io.on("connection", async (socket) => {
@@ -96,6 +105,36 @@ const socketCreation = (server) => {
             }
 
             socket.join(roomId);
+
+            // Target का current presence तुरंत भेजें
+            try {
+                const target = await User.findById(targetuserId).select("isOnline lastSeen");
+                if (target) {
+                    socket.emit("updateUserStatus", {
+                        userId: targetuserId,
+                        isOnline: !!target.isOnline,
+                        lastSeen: target.lastSeen || null,
+                    });
+                }
+            } catch (e) {
+                console.error("Presence fetch error:", e);
+            }
+        });
+
+        // ✅ Get presence fallback
+        socket.on("getPresence", async ({ userId: targetId }) => {
+            try {
+                const target = await User.findById(targetId).select("isOnline lastSeen");
+                if (target) {
+                    socket.emit("updateUserStatus", {
+                        userId: targetId,
+                        isOnline: !!target.isOnline,
+                        lastSeen: target.lastSeen || null,
+                    });
+                }
+            } catch (e) {
+                console.error("Presence fetch error:", e);
+            }
         });
 
         // ✅ Send message
