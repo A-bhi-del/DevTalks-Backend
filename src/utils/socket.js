@@ -10,7 +10,7 @@ const userConnectionCounts = new Map();
 const socketCreation = (server) => {
     const io = new Server(server, {
         cors: {
-            origin: "http://localhost:5173",
+            origin: ["https://dev-talks-frontend-5f7l.vercel.app/", "https://dev-talks-frontend-5f7l-rcypxnt4l-a-bhi-dels-projects.vercel.app/", "http://localhost:5173"],
             credentials: true,
         },
     });
