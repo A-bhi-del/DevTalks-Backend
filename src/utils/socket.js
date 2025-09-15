@@ -16,7 +16,27 @@ const socketCreation = (server) => {
     });
 
     io.on("connection", async (socket) => {
-        const { token } = socket.handshake.auth || {};
+        // Prefer auth.token; fallback to httpOnly cookie named 'token'
+        let token = (socket.handshake.auth && socket.handshake.auth.token) || null;
+        if (!token) {
+            const rawCookie = socket.handshake.headers && socket.handshake.headers.cookie;
+            if (rawCookie && typeof rawCookie === "string") {
+                try {
+                    const pairs = rawCookie.split(";").map((p) => p.trim()).filter(Boolean);
+                    const map = new Map();
+                    for (const pair of pairs) {
+                        const eqIdx = pair.indexOf("=");
+                        if (eqIdx === -1) continue;
+                        const k = pair.slice(0, eqIdx).trim();
+                        const v = decodeURIComponent(pair.slice(eqIdx + 1));
+                        map.set(k, v);
+                    }
+                    token = map.get("token") || null;
+                } catch (_) {
+                    // ignore cookie parse errors
+                }
+            }
+        }
         let userId;
         try {
             if (!token) throw new Error("Missing auth token");
