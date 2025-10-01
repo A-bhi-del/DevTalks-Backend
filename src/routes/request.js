@@ -27,7 +27,7 @@ requestRouter.post("/request/send/:status/:toUserId", userAuth, async (req, res)
     }
 
     // validations for check there is connection request is alreay exist or
-    // the user that get connecto request has send same request to user where he got the request
+    // the user that get connection request has send same request to user where he got the request
     const connectionRequestExist = await connectionRequest.findOne({
       $or: [
         { toUserId, fromUserId },
@@ -49,13 +49,13 @@ requestRouter.post("/request/send/:status/:toUserId", userAuth, async (req, res)
     // Here we save the connection request
     const data = await connectRequestsent.save();
     
-    if (status === "interested") {
-    await sendEmail(
-        id_is_exist.email,   // jisko request gayi uska email
-        "Someone is interested in you 🎉",
-        `${user.firstName} is interested in your profile on Dev.Talks!`
-      );
-    }
+    // if (status === "interested") {
+    // await sendEmail(
+    //     id_is_exist.email,   // jisko request gayi uska email
+    //     "Someone is interested in you ",
+    //     `${user.firstName} is interested in your profile on Dev.Talks!`
+    //   );
+    // }
     res.json({
       message: `${user.firstName} sent connection request to ${sender.firstName}`,
       data,

@@ -64,9 +64,7 @@ userRouter.get("/user/feed", userAuth, async (req, res) => {
     try {
         const loggedInuser = req.user;
         const page = parseInt(req.query.page) || 1;
-        // console.log(req.query.limit);
-        let limit = parseInt(req.query.limit) || 15;  // we use let here because we change its value in next line
-        // console.log(limit);
+        let limit = parseInt(req.query.limit) || 15;
         limit = limit > 15 ? 15 : limit;
         const skip = (page - 1) * limit;
 
@@ -84,16 +82,18 @@ userRouter.get("/user/feed", userAuth, async (req, res) => {
         });
 
         const users_that_can_be_seen_by_a_loggedinuser = await User.find({
-            // Array.form conver the set into Array datastructure
-            // $ne means "not equal"  or $nin means "not in"
             $and: [
                 { _id: { $nin: Array.from(HidConnectionRequest) } },
                 { _id: { $ne: loggedInuser._id } }
-                // { age: { $gte: loggedInuser.age - 2, $lte: loggedInuser.age + 2 } },
             ]
         }).select(USER_DATA).skip(skip).limit(limit);
-        // console.log(HidConnectionRequest);
-        res.json(users_that_can_be_seen_by_a_loggedinuser);
+
+        res.json({
+            users: users_that_can_be_seen_by_a_loggedinuser,
+            hasMore: users_that_can_be_seen_by_a_loggedinuser.length === limit,
+            page,
+            totalHidden: HidConnectionRequest.size
+        });
 
     } catch (err) {
         res.status(500).send("Error in fetching feed:" + err.message);

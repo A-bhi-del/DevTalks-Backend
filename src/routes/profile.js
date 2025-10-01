@@ -24,7 +24,7 @@ profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
     console.log(loggedInUser);
 
     Object.keys(req.body).forEach((key) => (loggedInUser[key] = req.body[key]));
-    console.log(loggedInUser);
+    // console.log(loggedInUser);
     await loggedInUser.save();
     res.json({
       message: `${loggedInUser.firstName} your profile is updated successfully`,
@@ -36,29 +36,29 @@ profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
 })
 
 
-profileRouter.patch("/profile/forget-password", async (req, res) => {
-  try {
-    const { emailId, password } = req.body;
+// profileRouter.patch("/profile/forget-password", async (req, res) => {
+//   try {
+//     const { emailId, password } = req.body;
 
-    const finduser = await User.findOne({ emailId: emailId });
-    if (!finduser) {
-      throw new Error("user not found");
-    }
-    console.log(finduser);
+//     const finduser = await User.findOne({ emailId: emailId });
+//     if (!finduser) {
+//       throw new Error("user not found");
+//     }
+//     console.log(finduser);
 
-    const hashedpassword = await bcrypt.hash(password, 10);
+//     const hashedpassword = await bcrypt.hash(password, 10);
 
-    finduser.password = hashedpassword;
+//     finduser.password = hashedpassword;
 
-    finduser.save();
-    console.log(finduser);
-    res.json({
-      message: `${finduser.firstName} your password is updated successfully`,
-      data: finduser
-    })
-  } catch (err) {
-    res.status(500).send("Error im updating password:" + err.message);
-  }
-})
+//     finduser.save();
+//     console.log(finduser);
+//     res.json({
+//       message: `${finduser.firstName} your password is updated successfully`,
+//       data: finduser
+//     })
+//   } catch (err) {
+//     res.status(500).send("Error im updating password:" + err.message);
+//   }
+// })
 
 module.exports = profileRouter;

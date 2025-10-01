@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
         minLength: 8,
-        select: false, // Exclude password from queries by default
+        select: false, 
         validate(value) {
             if (!validator.isStrongPassword(value)) {
                 throw new Error("Password must be strong");
@@ -51,7 +51,6 @@ const userSchema = new mongoose.Schema({
 
     gender: {
         type: String,
-        // validate function always works for only when we create a new user it does not work for update , delete . if you want that is work for update and delete also than we should do enable the calidate
         validate(value) {
             if(!["male", "female", "other"].includes(value)){
                 throw new Error("Invalid gender");
@@ -78,12 +77,12 @@ const userSchema = new mongoose.Schema({
         type: [String],
     },
 
-    isOnline : { // for use is online or offline
+    isOnline : { 
         type : Boolean,
         default : false,
     },
 
-    lastSeen : { // if user is offline than we can show last seen time
+    lastSeen : { 
         type : Date,
         default : null,
     }
@@ -91,7 +90,7 @@ const userSchema = new mongoose.Schema({
 },
 
     {
-        timestamps: true, // Automatically adds createdAt and updatedAt fields
+        timestamps: true, 
     })
 
 userSchema.methods.getJWT = async function () {

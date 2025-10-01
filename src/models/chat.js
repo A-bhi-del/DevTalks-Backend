@@ -13,22 +13,20 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ✅ Track if a message is deleted globally
-    deletedForEveryone: {
-      type: Boolean,
-      default: false,
-    },
+    // deletedForEveryone: {
+    //   type: Boolean,
+    //   default: false,
+    // },
 
-    // ✅ Track which users have deleted it only for themselves
-    deletedFor: [
-      {
-        type: mongoose.Schema.Types.ObjectId, // store user IDs who deleted for themselves
-        ref: "User",
-      },
-    ],
+    // deletedFor: [
+    //   {
+    //     type: mongoose.Schema.Types.ObjectId, 
+    //     ref: "User",
+    //   },
+    // ],
   },
   {
-    timestamps: true, // gives createdAt & updatedAt
+    timestamps: true, 
   }
 );
 
