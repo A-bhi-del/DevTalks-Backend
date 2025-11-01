@@ -23,9 +23,28 @@ authRouter.post("/signup", async (req, res) => {
 
         const savedUser = await user.save();
         const token = await savedUser.getJWT();
-        res.cookie("token", token, {
-            expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
-        })
+        
+        // Cookie settings based on environment
+        const isProduction = process.env.NODE_ENV === 'production';
+        
+        const cookieOptions = {
+            httpOnly: true,
+            expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
+        };
+        
+        // For production (deployed): use secure + sameSite: none (for cross-origin)
+        // For localhost: use sameSite: lax (works with http://localhost)
+        if (isProduction) {
+            cookieOptions.secure = true;
+            cookieOptions.sameSite = 'none';
+        } else {
+            // Local development - no secure flag needed, use lax for same-origin
+            cookieOptions.secure = false;
+            cookieOptions.sameSite = 'lax';
+        }
+        
+        console.log("🍪 Setting cookie with options:", cookieOptions);
+        res.cookie("token", token, cookieOptions);
 
         res.status(200).json({
             message: "User signed up successfully",
@@ -51,17 +70,30 @@ authRouter.post("/login", async (req, res) => {
         const passwordisValid = await user.validatePassword(password);
         if (passwordisValid) {
             const token = await user.getJWT();
-            // console.log(token);
-            // res.cookie("token", token, {
-            //     expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
-            // });
-            res.cookie("token", token, {
+            
+            // Cookie settings based on environment
+            const isProduction = process.env.NODE_ENV === 'production';
+            
+            const cookieOptions = {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production', // only HTTPS in prod
-                sameSite: 'none', // cross-site cookies for Vercel frontend
                 expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
-            });
+            };
+            
+            // For production (deployed): use secure + sameSite: none (for cross-origin)
+            // For localhost: use sameSite: lax (works with http://localhost)
+            if (isProduction) {
+                cookieOptions.secure = true;
+                cookieOptions.sameSite = 'none';
+            } else {
+                // Local development - no secure flag needed, use lax for same-origin
+                cookieOptions.secure = false;
+                cookieOptions.sameSite = 'lax';
+            }
+            
+            console.log("🍪 Setting cookie with options:", cookieOptions);
+            res.cookie("token", token, cookieOptions);
 
+            console.log("✅ Login successful for user:", emailId);
             res.status(200).json({
                 message: "User logged in successfully",
                 data: user

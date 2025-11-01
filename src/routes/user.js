@@ -62,11 +62,16 @@ userRouter.get("/user/requests", userAuth, async (req, res) => {
 
 userRouter.get("/user/feed", userAuth, async (req, res) => {
     try {
+        console.log("Feed endpoint hit by user:", req.user._id);
         const loggedInuser = req.user;
         const page = parseInt(req.query.page) || 1;
         let limit = parseInt(req.query.limit) || 15;
         limit = limit > 15 ? 15 : limit;
         const skip = (page - 1) * limit;
+
+        // First, let's check total users in database
+        const totalUsers = await User.countDocuments();
+        console.log("Total users in database:", totalUsers);
 
         const Requests = await connectionRequest.find({
             $or: [
@@ -88,11 +93,16 @@ userRouter.get("/user/feed", userAuth, async (req, res) => {
             ]
         }).select(USER_DATA).skip(skip).limit(limit);
 
+        console.log("Hidden connections count:", HidConnectionRequest.size);
+        console.log("Users found for feed:", users_that_can_be_seen_by_a_loggedinuser.length);
+        console.log("Users data:", users_that_can_be_seen_by_a_loggedinuser);
+
         res.json({
             users: users_that_can_be_seen_by_a_loggedinuser,
             hasMore: users_that_can_be_seen_by_a_loggedinuser.length === limit,
             page,
-            totalHidden: HidConnectionRequest.size
+            totalHidden: HidConnectionRequest.size,
+            totalUsers: totalUsers
         });
 
     } catch (err) {

@@ -24,6 +24,8 @@ const profileRouter = require("./routes/profile.js");
 const requestRouter = require("./routes/request.js");
 const userRouter = require("./routes/user.js");
 const chatRouter = require("./routes/chatrouter.js");
+const notificationRouter = require("./routes/notification.js");
+const signalingRouter = require("./routes/signaling.js");
 
 chatRouter.use((req, res, next) => {
   console.log("Chat Router hit for:", req.method, req.originalUrl);
@@ -35,6 +37,8 @@ app.use("/", profileRouter);
 app.use("/", requestRouter);
 app.use("/", userRouter);
 app.use("/", chatRouter);
+app.use("/", notificationRouter);
+app.use("/", signalingRouter);
 
 const server = http.createServer(app);
 socketCreation(server);
@@ -42,7 +46,7 @@ socketCreation(server);
 
 connectDB()
 .then(() => {
-    console.log("MongoDB is connected");
+    console.log("MongoDB is connected Successfully 🫡");
     const PORT = process.env.PORT || 3000;
     server.listen(PORT, () => {
       console.log('Server is running on port 3000');
