@@ -35,30 +35,4 @@ profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
   }
 })
 
-
-// profileRouter.patch("/profile/forget-password", async (req, res) => {
-//   try {
-//     const { emailId, password } = req.body;
-
-//     const finduser = await User.findOne({ emailId: emailId });
-//     if (!finduser) {
-//       throw new Error("user not found");
-//     }
-//     console.log(finduser);
-
-//     const hashedpassword = await bcrypt.hash(password, 10);
-
-//     finduser.password = hashedpassword;
-
-//     finduser.save();
-//     console.log(finduser);
-//     res.json({
-//       message: `${finduser.firstName} your password is updated successfully`,
-//       data: finduser
-//     })
-//   } catch (err) {
-//     res.status(500).send("Error im updating password:" + err.message);
-//   }
-// })
-
 module.exports = profileRouter;

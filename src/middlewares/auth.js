@@ -12,7 +12,21 @@ const userAuth = async (req, res, next) => {
       return res.status(401).send("Please login first");
     }
 
-    const decodedMessage = await jwt.verify(token, process.env.JWT_SECRET);
+    let decodedMessage;
+    try {
+      // Try with new secret first
+      decodedMessage = await jwt.verify(token, process.env.JWT_SECRET);
+    } catch (newSecretError) {
+      console.log("🔄 New secret failed, trying old secret for backward compatibility");
+      try {
+        // Fallback to old secret for existing tokens
+        decodedMessage = await jwt.verify(token, "sgvd@2873b");
+        console.log("⚠️ Token verified with old secret - user should re-login");
+      } catch (oldSecretError) {
+        throw new Error("Invalid token - please re-login");
+      }
+    }
+    
     const { _id } = decodedMessage;
     console.log("✅ Token decoded, user ID:", _id);
 

@@ -13,7 +13,7 @@ chatRouter.get("/chat/:targetuserId", userAuth, async (req, res) => {
             participants: { $all: [userId, targetuserId] },
         }).populate({
             path: "messages.SenderId",
-            select: " _id firstName lastName photoUrl",
+            select: "_id firstName lastName photoUrl isOnline lastSeen",
         });
 
         if (!chat) {

@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
 
     lastName: {
         type: String,
+        required: true,
     },
 
     emailId: {
@@ -95,7 +96,7 @@ const userSchema = new mongoose.Schema({
 
 userSchema.methods.getJWT = async function () {
     const user = this;
-    const token = await jwt.sign({ _id: user._id }, "sgvd@2873b", { expiresIn: "10d" });
+    const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, { expiresIn: "10d" });
     return token;
 }
 

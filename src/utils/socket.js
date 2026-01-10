@@ -39,7 +39,12 @@ const socketCreation = (server) => {
     });
 
     io.on("connection", async (socket) => {
+        console.log("🔌 New socket connection attempt");
+        console.log("🔍 Socket handshake auth:", socket.handshake.auth);
+        console.log("🔍 Socket handshake headers:", socket.handshake.headers.cookie);
+        
         let token = (socket.handshake.auth && socket.handshake.auth.token) || null;
+        console.log("🔑 Token from auth:", !!token, token ? token.substring(0, 20) + '...' : 'null');
         if (!token) {
             const rawCookie = socket.handshake.headers && socket.handshake.headers.cookie;
             if (rawCookie && typeof rawCookie === "string") {
@@ -54,6 +59,7 @@ const socketCreation = (server) => {
                         map.set(k, v);
                     }
                     token = map.get("token") || null;
+                    console.log("🔑 Token from cookie:", !!token, token ? token.substring(0, 20) + '...' : 'null');
                 } catch (_) {
                     // ignore cookie parse errors
                 }
@@ -62,15 +68,32 @@ const socketCreation = (server) => {
         let userId;
         try {
             if (!token) throw new Error("Missing auth token");
-            // Use same secret as user.js model
-            const decoded = await jwt.verify(token, "sgvd@2873b");
+            console.log("🔐 Verifying token with JWT_SECRET");
+            
+            let decoded;
+            try {
+                // Try with new secret first
+                decoded = await jwt.verify(token, process.env.JWT_SECRET);
+            } catch (newSecretError) {
+                console.log("🔄 New secret failed, trying old secret for backward compatibility");
+                try {
+                    // Fallback to old secret for existing tokens
+                    decoded = await jwt.verify(token, "sgvd@2873b");
+                    console.log("⚠️ Token verified with old secret - user should re-login");
+                } catch (oldSecretError) {
+                    throw new Error("Invalid token - please re-login");
+                }
+            }
+            
             userId = decoded && decoded._id;
             if (!userId || !userId.match(/^[0-9a-fA-F]{24}$/)) {
                 throw new Error("Invalid token payload");
             }
             socket.userId = userId;
+            console.log("✅ Socket authenticated for user:", userId);
         } catch (err) {
-            console.error("Socket auth failed:", err.message);
+            console.error("❌ Socket auth failed:", err.message);
+            socket.emit("error", { message: "Authentication failed: " + err.message });
             socket.disconnect();
             return;
         }
@@ -267,6 +290,8 @@ const socketCreation = (server) => {
             }
         });
     });
+    
+    return io; // Return the io instance
 };
 
 module.exports = socketCreation;
