@@ -57,7 +57,6 @@ const socketCreation = (server) => {
                         map.set(k, v);
                     }
                     token = map.get("token") || null;
-                    console.log("🔑 Token from cookie:", !!token, token ? token.substring(0, 20) + '...' : 'null');
                 } catch (_) {
                     // ignore cookie parse errors
                 }
@@ -65,19 +64,15 @@ const socketCreation = (server) => {
         }
         let userId;
         try {
-            if (!token) throw new Error("Missing auth token");
-            console.log("🔐 Verifying token with JWT_SECRET");
-            
+            if (!token) throw new Error("Missing auth token");            
             let decoded;
             try {
                 // Try with new secret first
                 decoded = await jwt.verify(token, process.env.JWT_SECRET);
             } catch (newSecretError) {
-                console.log("🔄 New secret failed, trying old secret for backward compatibility");
                 try {
                     // Fallback to old secret for existing tokens
                     decoded = await jwt.verify(token, "sgvd@2873b");
-                    console.log("⚠️ Token verified with old secret - user should re-login");
                 } catch (oldSecretError) {
                     throw new Error("Invalid token - please re-login");
                 }
@@ -88,7 +83,6 @@ const socketCreation = (server) => {
                 throw new Error("Invalid token payload");
             }
             socket.userId = userId;
-            console.log("✅ Socket authenticated for user:", userId);
 
             // ✅ Track user -> socket mapping
             if (!userSockets.has(userId)) {
@@ -97,7 +91,7 @@ const socketCreation = (server) => {
             userSockets.get(userId).add(socket.id);
 
         } catch (err) {
-            console.error("❌ Socket auth failed:", err.message);
+            console.error("Socket auth failed:", err.message);
             socket.emit("error", { message: "Authentication failed: " + err.message });
             socket.disconnect();
             return;
@@ -128,88 +122,45 @@ const socketCreation = (server) => {
             });
         }
 
-        //  Join chat room
-        // socket.on("joinChat", async ({ targetuserId }) => {
-        //     try {
-        //         if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
-        //             socket.emit("error", { message: "Invalid target user ID" });
-        //             return;
-        //         }
-
-        //         const roomId = [userId, targetuserId].sort().join("_");
-
-        //         // Optional: check friendship
-        //         const friends = await connectionRequest.findOne({
-        //             $or: [
-        //                 { fromUserId: userId, toUserId: targetuserId, connectionRequestMessage: "accepted" },
-        //                 { fromUserId: targetuserId, toUserId: userId, connectionRequestMessage: "accepted" },
-        //             ],
-        //         });
-        //         if (!friends) {
-        //             console.log("Users are not friends:", userId, targetuserId);
-        //             socket.emit("error", { message: "Users are not friends" });
-        //             return;
-        //         }
-
-        //         socket.join(roomId);
-
-        //         // Target का current presence तुरंत भेजें
-        //         try {
-        //             const target = await User.findById(targetuserId).select("isOnline lastSeen");
-        //             if (target) {
-        //                 socket.emit("updateUserStatus", {
-        //                     userId: targetuserId,
-        //                     isOnline: !!target.isOnline,
-        //                     lastSeen: target.lastSeen || null,
-        //                 });
-        //             }
-        //         } catch (e) {
-        //             console.error("Presence fetch error:", e);
-        //         }
-        //     } catch (err) {
-        //         console.error("Join chat error:", err);
-        //         socket.emit("error", { message: "Failed to join chat" });
-        //     }
-        // });
         socket.on("joinChat", async ({ targetuserId }, callback) => {
-  try {
-    if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
-      callback?.({ status: "error", message: "Invalid target user ID" });
-      return;
-    }
+            try {
+                if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
+                callback?.({ status: "error", message: "Invalid target user ID" });
+                return;
+                }
 
-    const roomId = [userId, targetuserId].sort().join("_");
+                const roomId = [userId, targetuserId].sort().join("_");
 
-    const friends = await connectionRequest.findOne({
-      $or: [
-        { fromUserId: userId, toUserId: targetuserId, connectionRequestMessage: "accepted" },
-        { fromUserId: targetuserId, toUserId: userId, connectionRequestMessage: "accepted" },
-      ],
-    });
+                const friends = await connectionRequest.findOne({
+                $or: [
+                    { fromUserId: userId, toUserId: targetuserId, connectionRequestMessage: "accepted" },
+                    { fromUserId: targetuserId, toUserId: userId, connectionRequestMessage: "accepted" },
+                ],
+                });
 
-    if (!friends) {
-      callback?.({ status: "error", message: "Users are not friends" });
-      return;
-    }
+                if (!friends) {
+                callback?.({ status: "error", message: "Users are not friends" });
+                return;
+                }
 
-    socket.join(roomId);
+                socket.join(roomId);
 
-    // Send presence immediately
-    const target = await User.findById(targetuserId).select("isOnline lastSeen");
-    if (target) {
-      socket.emit("updateUserStatus", {
-        userId: targetuserId,
-        isOnline: !!target.isOnline,
-        lastSeen: target.lastSeen || null,
-      });
-    }
+                // Send presence immediately
+                const target = await User.findById(targetuserId).select("isOnline lastSeen");
+                if (target) {
+                socket.emit("updateUserStatus", {
+                    userId: targetuserId,
+                    isOnline: !!target.isOnline,
+                    lastSeen: target.lastSeen || null,
+                });
+                }
 
-    callback?.({ status: "joined", roomId });
-  } catch (err) {
-    console.error("Join chat error:", err);
-    callback?.({ status: "error", message: "Failed to join chat" });
-  }
-});
+                callback?.({ status: "joined", roomId });
+            } catch (err) {
+                console.error("Join chat error:", err);
+                callback?.({ status: "error", message: "Failed to join chat" });
+            }
+        });
 
 
         //  Get presence fallback
@@ -233,86 +184,12 @@ const socketCreation = (server) => {
             }
         });
 
-        //  Send message
-        // socket.on("sendMessage", async ({ targetuserId, text, firstName, lastName }, callback) => {
-        //     try {
-        //         // Rate limiting check
-        //         const now = Date.now();
-        //         const userRateLimit = messageRateLimit.get(userId) || { count: 0, resetTime: now + 60000 }; // 1 minute window
-                
-        //         if (now > userRateLimit.resetTime) {
-        //             userRateLimit.count = 0;
-        //             userRateLimit.resetTime = now + 60000;
-        //         }
-                
-        //         if (userRateLimit.count >= 30) { // Max 30 messages per minute
-        //             socket.emit("error", { message: "Rate limit exceeded. Please slow down." });
-        //             return;
-        //         }
-                
-        //         userRateLimit.count++;
-        //         messageRateLimit.set(userId, userRateLimit);
+        socket.on("sendMessage", async ({ targetuserId, text, firstName, lastName }, callback) => {
+            console.log("sendMessage chal gya", {
+                from: userId,
+                to: targetuserId,
+            });
 
-        //         // Input validation
-        //         if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
-        //             socket.emit("error", { message: "Invalid target user ID" });
-        //             return;
-        //         }
-        //         if (!text || typeof text !== 'string' || text.trim().length === 0) {
-        //             socket.emit("error", { message: "Message cannot be empty" });
-        //             return;
-        //         }
-        //         if (text.length > 1000) {
-        //             socket.emit("error", { message: "Message too long (max 1000 characters)" });
-        //             return;
-        //         }
-
-        //         const roomId = [userId, targetuserId].sort().join("_");
-
-        //         // Find or create chat
-        //         let chat = await Chat.findOne({
-        //             participants: { $all: [userId, targetuserId] },
-        //         });
-
-        //         if (!chat) {
-        //             chat = new Chat({
-        //                 participants: [userId, targetuserId],
-        //                 messages: [],
-        //             });
-        //         }
-
-        //         chat.messages.push({
-        //             SenderId: userId,
-        //             text: text.trim(),
-        //         });
-
-        //         await chat.save();
-        //         const savedMessage = chat.messages[chat.messages.length - 1];
-
-        //         const socketsInRoom = await io.in(roomId).fetchSockets();
-
-        //             if (socketsInRoom.length === 0) {
-        //             console.log("⚠️ No sockets in room:", roomId);
-        //             }
-
-        //             // Emit message
-        //             io.to(roomId).emit("receiveMessage", {
-        //             _id: savedMessage._id,
-        //             text: savedMessage.text,
-        //             senderId: savedMessage.SenderId,
-        //             createdAt: savedMessage.createdAt,
-        //             firstName,
-        //             lastName,
-        //             });
-
-        //     } catch (err) {
-        //         console.error("Message error:", err);
-        //         socket.emit("error", { message: "Failed to send message" });
-        //     }
-        // });
-                socket.on(
-        "sendMessage",
-        async ({ targetuserId, text, firstName, lastName }, callback) => {
             try {
             /* ---------------- RATE LIMIT ---------------- */
             const now = Date.now();
@@ -378,12 +255,12 @@ const socketCreation = (server) => {
             const savedMessage = chat.messages[chat.messages.length - 1];
 
             /* ---------------- ROOM DEBUG ---------------- */
-            const socketsInRoom = await io.in(roomId).fetchSockets();
-            if (socketsInRoom.length === 0) {
-                console.log("⚠️ No sockets in room:", roomId);
-            }
-
             /* ---------------- EMIT MESSAGE ---------------- */
+            const socketsInRoom = await io.in(roomId).fetchSockets();
+
+            if (socketsInRoom.length === 0) {
+            console.log("⚠️ No sockets in room:", roomId);
+            }
             io.to(roomId).emit("receiveMessage", {
                 _id: savedMessage._id,
                 text: savedMessage.text,
@@ -392,6 +269,41 @@ const socketCreation = (server) => {
                 firstName,
                 lastName,
             });
+
+            // ✅ CHECK IF RECEIVER IS ONLINE (DELIVERED)
+            const receiverSockets = userSockets.get(targetuserId);
+            console.log("Receiver sockets check:", {
+                targetuserId,
+                sockets: receiverSockets ? [...receiverSockets] : null,
+                size: receiverSockets?.size || 0,
+            });
+
+            if (receiverSockets && receiverSockets.size > 0) {
+            await Chat.updateOne(
+                {
+                _id: chat._id,
+                "messages._id": savedMessage._id,
+                },
+                {
+                $set: {
+                    "messages.$.status": "delivered",
+                },
+                }
+            );
+            console.log("Delivered DB update executed");
+            console.log("Verify delivered status:", verify?.messages?.[0]);
+
+
+            // 🔔 Notify sender
+            const senderSockets = userSockets.get(userId);
+            if (senderSockets) {
+                for (const sid of senderSockets) {
+                io.to(sid).emit("message-delivered", {
+                    messageId: savedMessage._id,
+                });
+                }
+            }
+            }
 
             /* ---------------- SUCCESS ACK ---------------- */
             callback?.({
@@ -410,6 +322,7 @@ const socketCreation = (server) => {
             }
         }
         );
+
         // ✅ MARK MESSAGES AS READ
         socket.on("mark-messages-read", async ({ targetuserId }) => {
         try {
@@ -461,48 +374,43 @@ const socketCreation = (server) => {
         }
         });
 
-
-
         // Handle disconnect
-        socket.on("disconnect", async () => {
-            // ✅ Remove socket from userSockets
-            if (!socket.userId) return;
+       socket.on("disconnect", async () => {
+        if (!socket.userId) return;
 
-            const sockets = userSockets.get(socket.userId);
-                if (sockets) {
-                sockets.delete(socket.id);
-                if (sockets.size === 0) {
-                    userSockets.delete(socket.userId);
-                }
+        // remove socket from userSockets
+        const sockets = userSockets.get(socket.userId);
+        if (sockets) {
+            sockets.delete(socket.id);
+            if (sockets.size === 0) {
+            userSockets.delete(socket.userId);
             }
+        }
 
+        const current = userConnectionCounts.get(socket.userId) || 1;
+        const remaining = Math.max(0, current - 1);
 
-            const current = userConnectionCounts.get(socket.userId) || 1;
-            const remaining = Math.max(0, current - 1);
-            if (remaining === 0) {
-                userConnectionCounts.delete(socket.userId);
+        if (remaining === 0) {
+            userConnectionCounts.delete(socket.userId);
 
-                const lastSeen = new Date();
-                try {
-                    await User.findByIdAndUpdate(socket.userId, {
-                        isOnline: false,
-                        lastSeen,
-                    });
-                } catch (err) {
-                    console.error("Error updating user offline status:", err);
-                }
+            const lastSeen = new Date();
 
-                socket.broadcast.emit("updateUserStatus", {
-                    userId: socket.userId,
-                    isOnline: false,
-                    lastSeen,
-                });
+            await User.findByIdAndUpdate(socket.userId, {
+            isOnline: false,
+            lastSeen,
+            });
 
-            } else {
-                userConnectionCounts.set(socket.userId, remaining);
-            }
+            socket.broadcast.emit("updateUserStatus", {
+            userId: socket.userId,
+            isOnline: false,
+            lastSeen,
+            });
+        } else {
+            userConnectionCounts.set(socket.userId, remaining);
+        }
         });
-    });
+
+        });
     
     return io; // Return the io instance
 };
