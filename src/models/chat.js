@@ -12,18 +12,18 @@ const messageSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    
+    status: {
+      type: String,
+      enum: ["sent", "read"],
+      default: "sent",
+    },
 
-    // deletedForEveryone: {
-    //   type: Boolean,
-    //   default: false,
-    // },
+    readAt: {
+      type: Date,
+      default: null,
+    },
 
-    // deletedFor: [
-    //   {
-    //     type: mongoose.Schema.Types.ObjectId, 
-    //     ref: "User",
-    //   },
-    // ],
   },
   {
     timestamps: true, 

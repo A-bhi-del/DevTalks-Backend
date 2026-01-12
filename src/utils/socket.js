@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 
 const userConnectionCounts = new Map();
 const messageRateLimit = new Map(); // Rate limiting for messages
+const userSockets = new Map(); // userId -> Set(socket.id)
 
 // Cleanup function for memory management
 const cleanupMaps = () => {
@@ -88,6 +89,13 @@ const socketCreation = (server) => {
             }
             socket.userId = userId;
             console.log("✅ Socket authenticated for user:", userId);
+
+            // ✅ Track user -> socket mapping
+            if (!userSockets.has(userId)) {
+            userSockets.set(userId, new Set());
+            }
+            userSockets.get(userId).add(socket.id);
+
         } catch (err) {
             console.error("❌ Socket auth failed:", err.message);
             socket.emit("error", { message: "Authentication failed: " + err.message });
@@ -402,11 +410,72 @@ const socketCreation = (server) => {
             }
         }
         );
+        // ✅ MARK MESSAGES AS READ
+        socket.on("mark-messages-read", async ({ targetuserId }) => {
+        try {
+            if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
+            return;
+            }
+
+            // Find the chat
+            const chat = await Chat.findOne({
+            participants: { $all: [socket.userId, targetuserId] },
+            });
+
+            if (!chat) return;
+
+            let updated = false;
+
+            chat.messages.forEach((msg) => {
+            // Messages sent by OTHER user & not yet read
+            if (
+                msg.SenderId.toString() === targetuserId &&
+                msg.status !== "read"
+            ) {
+                msg.status = "read";
+                msg.readAt = new Date();
+                updated = true;
+            }
+            });
+
+            if (!updated) return;
+
+            await chat.save();
+
+           
+            // 🔔 Notify ONLY the sender (even if chat is closed)
+            const senderSockets = userSockets.get(targetuserId);
+
+            if (senderSockets) {
+            for (const sid of senderSockets) {
+                io.to(sid).emit("messages-read", {
+                readerId: socket.userId,
+                chatWith: targetuserId,
+                });
+            }
+            }
+
+
+        } catch (err) {
+            console.error("❌ mark-messages-read error:", err);
+        }
+        });
+
 
 
         // Handle disconnect
         socket.on("disconnect", async () => {
+            // ✅ Remove socket from userSockets
             if (!socket.userId) return;
+
+            const sockets = userSockets.get(socket.userId);
+                if (sockets) {
+                sockets.delete(socket.id);
+                if (sockets.size === 0) {
+                    userSockets.delete(socket.userId);
+                }
+            }
+
 
             const current = userConnectionCounts.get(socket.userId) || 1;
             const remaining = Math.max(0, current - 1);
