@@ -39,9 +39,6 @@ const socketCreation = (server) => {
     });
 
     io.on("connection", async (socket) => {
-        console.log("🔌 New socket connection attempt");
-        console.log("🔍 Socket handshake auth:", socket.handshake.auth);
-        console.log("🔍 Socket handshake headers:", socket.handshake.headers.cookie);
         
         let token = (socket.handshake.auth && socket.handshake.auth.token) || null;
         console.log("🔑 Token from auth:", !!token, token ? token.substring(0, 20) + '...' : 'null');
@@ -124,48 +121,88 @@ const socketCreation = (server) => {
         }
 
         //  Join chat room
-        socket.on("joinChat", async ({ targetuserId }) => {
-            try {
-                if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
-                    socket.emit("error", { message: "Invalid target user ID" });
-                    return;
-                }
+        // socket.on("joinChat", async ({ targetuserId }) => {
+        //     try {
+        //         if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
+        //             socket.emit("error", { message: "Invalid target user ID" });
+        //             return;
+        //         }
 
-                const roomId = [userId, targetuserId].sort().join("_");
+        //         const roomId = [userId, targetuserId].sort().join("_");
 
-                // Optional: check friendship
-                const friends = await connectionRequest.findOne({
-                    $or: [
-                        { fromUserId: userId, toUserId: targetuserId, connectionRequestMessage: "accepted" },
-                        { fromUserId: targetuserId, toUserId: userId, connectionRequestMessage: "accepted" },
-                    ],
-                });
-                if (!friends) {
-                    console.log("Users are not friends:", userId, targetuserId);
-                    socket.emit("error", { message: "Users are not friends" });
-                    return;
-                }
+        //         // Optional: check friendship
+        //         const friends = await connectionRequest.findOne({
+        //             $or: [
+        //                 { fromUserId: userId, toUserId: targetuserId, connectionRequestMessage: "accepted" },
+        //                 { fromUserId: targetuserId, toUserId: userId, connectionRequestMessage: "accepted" },
+        //             ],
+        //         });
+        //         if (!friends) {
+        //             console.log("Users are not friends:", userId, targetuserId);
+        //             socket.emit("error", { message: "Users are not friends" });
+        //             return;
+        //         }
 
-                socket.join(roomId);
+        //         socket.join(roomId);
 
-                // Target का current presence तुरंत भेजें
-                try {
-                    const target = await User.findById(targetuserId).select("isOnline lastSeen");
-                    if (target) {
-                        socket.emit("updateUserStatus", {
-                            userId: targetuserId,
-                            isOnline: !!target.isOnline,
-                            lastSeen: target.lastSeen || null,
-                        });
-                    }
-                } catch (e) {
-                    console.error("Presence fetch error:", e);
-                }
-            } catch (err) {
-                console.error("Join chat error:", err);
-                socket.emit("error", { message: "Failed to join chat" });
-            }
-        });
+        //         // Target का current presence तुरंत भेजें
+        //         try {
+        //             const target = await User.findById(targetuserId).select("isOnline lastSeen");
+        //             if (target) {
+        //                 socket.emit("updateUserStatus", {
+        //                     userId: targetuserId,
+        //                     isOnline: !!target.isOnline,
+        //                     lastSeen: target.lastSeen || null,
+        //                 });
+        //             }
+        //         } catch (e) {
+        //             console.error("Presence fetch error:", e);
+        //         }
+        //     } catch (err) {
+        //         console.error("Join chat error:", err);
+        //         socket.emit("error", { message: "Failed to join chat" });
+        //     }
+        // });
+        socket.on("joinChat", async ({ targetuserId }, callback) => {
+  try {
+    if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
+      callback?.({ status: "error", message: "Invalid target user ID" });
+      return;
+    }
+
+    const roomId = [userId, targetuserId].sort().join("_");
+
+    const friends = await connectionRequest.findOne({
+      $or: [
+        { fromUserId: userId, toUserId: targetuserId, connectionRequestMessage: "accepted" },
+        { fromUserId: targetuserId, toUserId: userId, connectionRequestMessage: "accepted" },
+      ],
+    });
+
+    if (!friends) {
+      callback?.({ status: "error", message: "Users are not friends" });
+      return;
+    }
+
+    socket.join(roomId);
+
+    // Send presence immediately
+    const target = await User.findById(targetuserId).select("isOnline lastSeen");
+    if (target) {
+      socket.emit("updateUserStatus", {
+        userId: targetuserId,
+        isOnline: !!target.isOnline,
+        lastSeen: target.lastSeen || null,
+      });
+    }
+
+    callback?.({ status: "joined", roomId });
+  } catch (err) {
+    console.error("Join chat error:", err);
+    callback?.({ status: "error", message: "Failed to join chat" });
+  }
+});
+
 
         //  Get presence fallback
         socket.on("getPresence", async ({ userId: targetId }) => {
@@ -189,75 +226,183 @@ const socketCreation = (server) => {
         });
 
         //  Send message
-        socket.on("sendMessage", async ({ targetuserId, text, firstName, lastName }) => {
+        // socket.on("sendMessage", async ({ targetuserId, text, firstName, lastName }, callback) => {
+        //     try {
+        //         // Rate limiting check
+        //         const now = Date.now();
+        //         const userRateLimit = messageRateLimit.get(userId) || { count: 0, resetTime: now + 60000 }; // 1 minute window
+                
+        //         if (now > userRateLimit.resetTime) {
+        //             userRateLimit.count = 0;
+        //             userRateLimit.resetTime = now + 60000;
+        //         }
+                
+        //         if (userRateLimit.count >= 30) { // Max 30 messages per minute
+        //             socket.emit("error", { message: "Rate limit exceeded. Please slow down." });
+        //             return;
+        //         }
+                
+        //         userRateLimit.count++;
+        //         messageRateLimit.set(userId, userRateLimit);
+
+        //         // Input validation
+        //         if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
+        //             socket.emit("error", { message: "Invalid target user ID" });
+        //             return;
+        //         }
+        //         if (!text || typeof text !== 'string' || text.trim().length === 0) {
+        //             socket.emit("error", { message: "Message cannot be empty" });
+        //             return;
+        //         }
+        //         if (text.length > 1000) {
+        //             socket.emit("error", { message: "Message too long (max 1000 characters)" });
+        //             return;
+        //         }
+
+        //         const roomId = [userId, targetuserId].sort().join("_");
+
+        //         // Find or create chat
+        //         let chat = await Chat.findOne({
+        //             participants: { $all: [userId, targetuserId] },
+        //         });
+
+        //         if (!chat) {
+        //             chat = new Chat({
+        //                 participants: [userId, targetuserId],
+        //                 messages: [],
+        //             });
+        //         }
+
+        //         chat.messages.push({
+        //             SenderId: userId,
+        //             text: text.trim(),
+        //         });
+
+        //         await chat.save();
+        //         const savedMessage = chat.messages[chat.messages.length - 1];
+
+        //         const socketsInRoom = await io.in(roomId).fetchSockets();
+
+        //             if (socketsInRoom.length === 0) {
+        //             console.log("⚠️ No sockets in room:", roomId);
+        //             }
+
+        //             // Emit message
+        //             io.to(roomId).emit("receiveMessage", {
+        //             _id: savedMessage._id,
+        //             text: savedMessage.text,
+        //             senderId: savedMessage.SenderId,
+        //             createdAt: savedMessage.createdAt,
+        //             firstName,
+        //             lastName,
+        //             });
+
+        //     } catch (err) {
+        //         console.error("Message error:", err);
+        //         socket.emit("error", { message: "Failed to send message" });
+        //     }
+        // });
+                socket.on(
+        "sendMessage",
+        async ({ targetuserId, text, firstName, lastName }, callback) => {
             try {
-                // Rate limiting check
-                const now = Date.now();
-                const userRateLimit = messageRateLimit.get(userId) || { count: 0, resetTime: now + 60000 }; // 1 minute window
-                
-                if (now > userRateLimit.resetTime) {
-                    userRateLimit.count = 0;
-                    userRateLimit.resetTime = now + 60000;
-                }
-                
-                if (userRateLimit.count >= 30) { // Max 30 messages per minute
-                    socket.emit("error", { message: "Rate limit exceeded. Please slow down." });
-                    return;
-                }
-                
-                userRateLimit.count++;
-                messageRateLimit.set(userId, userRateLimit);
+            /* ---------------- RATE LIMIT ---------------- */
+            const now = Date.now();
+            const userRateLimit =
+                messageRateLimit.get(userId) || { count: 0, resetTime: now + 60000 };
 
-                // Input validation
-                if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
-                    socket.emit("error", { message: "Invalid target user ID" });
-                    return;
-                }
-                if (!text || typeof text !== 'string' || text.trim().length === 0) {
-                    socket.emit("error", { message: "Message cannot be empty" });
-                    return;
-                }
-                if (text.length > 1000) {
-                    socket.emit("error", { message: "Message too long (max 1000 characters)" });
-                    return;
-                }
-
-                const roomId = [userId, targetuserId].sort().join("_");
-
-                // Find or create chat
-                let chat = await Chat.findOne({
-                    participants: { $all: [userId, targetuserId] },
-                });
-
-                if (!chat) {
-                    chat = new Chat({
-                        participants: [userId, targetuserId],
-                        messages: [],
-                    });
-                }
-
-                chat.messages.push({
-                    SenderId: userId,
-                    text: text.trim(),
-                });
-
-                await chat.save();
-                const savedMessage = chat.messages[chat.messages.length - 1];
-
-                // Emit message to room
-                io.to(roomId).emit("receiveMessage", {
-                    _id: savedMessage._id,
-                    text: savedMessage.text,
-                    senderId: savedMessage.SenderId,
-                    createdAt: savedMessage.createdAt,
-                    firstName,
-                    lastName,
-                });
-            } catch (err) {
-                console.error("Message error:", err);
-                socket.emit("error", { message: "Failed to send message" });
+            if (now > userRateLimit.resetTime) {
+                userRateLimit.count = 0;
+                userRateLimit.resetTime = now + 60000;
             }
-        });
+
+            if (userRateLimit.count >= 30) {
+                callback?.({
+                status: "error",
+                message: "Rate limit exceeded. Please slow down.",
+                });
+                return;
+            }
+
+            userRateLimit.count++;
+            messageRateLimit.set(userId, userRateLimit);
+
+            /* ---------------- VALIDATION ---------------- */
+            if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
+                callback?.({ status: "error", message: "Invalid target user ID" });
+                return;
+            }
+
+            if (!text || typeof text !== "string" || text.trim().length === 0) {
+                callback?.({ status: "error", message: "Message cannot be empty" });
+                return;
+            }
+
+            if (text.length > 1000) {
+                callback?.({
+                status: "error",
+                message: "Message too long (max 1000 characters)",
+                });
+                return;
+            }
+
+            const roomId = [userId, targetuserId].sort().join("_");
+
+            /* ---------------- CHAT SAVE ---------------- */
+            let chat = await Chat.findOne({
+                participants: { $all: [userId, targetuserId] },
+            });
+
+            if (!chat) {
+                chat = new Chat({
+                participants: [userId, targetuserId],
+                messages: [],
+                });
+            }
+
+            chat.messages.push({
+                SenderId: userId,
+                text: text.trim(),
+            });
+
+            await chat.save();
+
+            const savedMessage = chat.messages[chat.messages.length - 1];
+
+            /* ---------------- ROOM DEBUG ---------------- */
+            const socketsInRoom = await io.in(roomId).fetchSockets();
+            if (socketsInRoom.length === 0) {
+                console.log("⚠️ No sockets in room:", roomId);
+            }
+
+            /* ---------------- EMIT MESSAGE ---------------- */
+            io.to(roomId).emit("receiveMessage", {
+                _id: savedMessage._id,
+                text: savedMessage.text,
+                senderId: savedMessage.SenderId,
+                createdAt: savedMessage.createdAt,
+                firstName,
+                lastName,
+            });
+
+            /* ---------------- SUCCESS ACK ---------------- */
+            callback?.({
+                status: "sent",
+                messageId: savedMessage._id,
+                createdAt: savedMessage.createdAt,
+            });
+            } catch (err) {
+            console.error("❌ Message error:", err);
+
+            /* ---------------- ERROR ACK ---------------- */
+            callback?.({
+                status: "error",
+                message: "Failed to send message",
+            });
+            }
+        }
+        );
+
 
         // Handle disconnect
         socket.on("disconnect", async () => {
@@ -284,7 +429,6 @@ const socketCreation = (server) => {
                     lastSeen,
                 });
 
-                console.log("User disconnected:", socket.userId);
             } else {
                 userConnectionCounts.set(socket.userId, remaining);
             }
