@@ -39,8 +39,7 @@ const socketCreation = (server) => {
         allowEIO3: true
     });
 
-    io.on("connection", async (socket) => {
-        
+    io.on("connection", async (socket) => { 
         let token = (socket.handshake.auth && socket.handshake.auth.token) || null;
         console.log("🔑 Token from auth:", !!token, token ? token.substring(0, 20) + '...' : 'null');
         if (!token) {
@@ -122,6 +121,7 @@ const socketCreation = (server) => {
             });
         }
 
+        // JOIN CHAT ROOM
         socket.on("joinChat", async ({ targetuserId }, callback) => {
             try {
                 if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -162,7 +162,6 @@ const socketCreation = (server) => {
             }
         });
 
-
         //  Get presence fallback
         socket.on("getPresence", async ({ userId: targetId }) => {
             try {
@@ -184,6 +183,7 @@ const socketCreation = (server) => {
             }
         });
 
+        // SEND MESSAGE
         socket.on("sendMessage", async ({ targetuserId, text, firstName, lastName }, callback) => {
             console.log("sendMessage chal gya", {
                 from: userId,
@@ -254,12 +254,11 @@ const socketCreation = (server) => {
 
             const savedMessage = chat.messages[chat.messages.length - 1];
 
-            /* ---------------- ROOM DEBUG ---------------- */
             /* ---------------- EMIT MESSAGE ---------------- */
             const socketsInRoom = await io.in(roomId).fetchSockets();
 
             if (socketsInRoom.length === 0) {
-            console.log("⚠️ No sockets in room:", roomId);
+            console.log("No sockets in room:", roomId);
             }
             io.to(roomId).emit("receiveMessage", {
                 _id: savedMessage._id,
@@ -290,8 +289,6 @@ const socketCreation = (server) => {
                 },
                 }
             );
-            console.log("Delivered DB update executed");
-            console.log("Verify delivered status:", verify?.messages?.[0]);
 
 
             // 🔔 Notify sender
@@ -323,7 +320,7 @@ const socketCreation = (server) => {
         }
         );
 
-        // ✅ MARK MESSAGES AS READ
+        // MARK MESSAGES AS READ
         socket.on("mark-messages-read", async ({ targetuserId }) => {
         try {
             if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
@@ -374,6 +371,75 @@ const socketCreation = (server) => {
         }
         });
 
+        // DELETE MESSAGE FOR ME
+        socket.on("delete-message-for-me", async ({ chatId, messageId }) => {
+            try {
+                const chat = await Chat.findOne({
+                _id: chatId,
+                participants: socket.userId,
+                });
+
+                if (!chat) return;
+
+                const msg = chat.messages.id(messageId);
+                if (!msg) return;
+
+                // ensure array exists
+                if (!msg.deletedFor) msg.deletedFor = [];
+
+                const uid = socket.userId.toString();
+
+                // add only if not present
+                if (!msg.deletedFor.some((x) => x.toString() === uid)) {
+                msg.deletedFor.push(socket.userId);
+                }
+
+                await chat.save();
+
+                socket.emit("message-deleted-for-me", { messageId });
+            } catch (err) {
+                console.error("delete-message-for-me error:", err);
+            }
+        });
+
+        // DELETE MESSAGE FOR EVERYONE
+        socket.on("delete-message-for-everyone", async ({ chatId, messageId }) => {
+            try {
+                const chat = await Chat.findById(chatId);
+                if (!chat) return;
+
+                const msg = chat.messages.id(messageId);
+                if (!msg) return;
+
+                // Only sender can delete for everyone (your choice)
+                if (msg.SenderId.toString() !== socket.userId.toString()) return;
+
+                msg.text = "This message was deleted";
+                msg.isDeletedForEveryone = true;
+                msg.deletedAt = new Date();
+
+                await chat.save();
+
+                // notify both users
+                // Emit to room (if open)
+                const roomId = chat.participants.map(x => x.toString()).sort().join("_");
+                io.to(roomId).emit("message-deleted-for-everyone", { messageId });
+
+                // Also emit directly to both users (even if chat is closed)
+                for (const participantId of chat.participants) {
+                const sockets = userSockets.get(participantId.toString());
+                if (sockets) {
+                    for (const sid of sockets) {
+                    io.to(sid).emit("message-deleted-for-everyone", { messageId });
+                    }
+                }
+                }
+
+            } catch (err) {
+                console.error("delete-message-for-everyone error:", err);
+            }
+        });
+
         // Handle disconnect
        socket.on("disconnect", async () => {
         if (!socket.userId) return;
@@ -410,9 +476,9 @@ const socketCreation = (server) => {
         }
         });
 
-        });
+    });
     
-    return io; // Return the io instance
+    return io;
 };
 
 module.exports = socketCreation;
