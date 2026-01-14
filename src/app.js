@@ -5,6 +5,8 @@ const cookieParser = require("cookie-parser");
 const socketCreation = require("./utils/socket.js");
 const http = require("http");
 const cors = require("cors");
+const path = require("path");
+
 require("dotenv").config();
 
 app.use(cors({
@@ -18,6 +20,8 @@ app.use(cors({
 
 app.use(express.json());
 app.use(cookieParser());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 
 const authRouter = require("./routes/authrouter.js");
 const profileRouter = require("./routes/profile.js");
@@ -26,6 +30,7 @@ const userRouter = require("./routes/user.js");
 const chatRouter = require("./routes/chatrouter.js");
 const notificationRouter = require("./routes/notification.js");
 const signalingRouter = require("./routes/signaling.js");
+const uploadRouter = require("./routes/upload.js");
 
 chatRouter.use((req, res, next) => {
   console.log("Chat Router hit for:", req.method, req.originalUrl);
@@ -39,6 +44,8 @@ app.use("/", userRouter);
 app.use("/", chatRouter);
 app.use("/", notificationRouter);
 app.use("/", signalingRouter);
+app.use("/", uploadRouter);
+
 
 const server = http.createServer(app);
 socketCreation(server);

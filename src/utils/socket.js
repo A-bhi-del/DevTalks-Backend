@@ -184,141 +184,189 @@ const socketCreation = (server) => {
         });
 
         // SEND MESSAGE
-        socket.on("sendMessage", async ({ targetuserId, text, firstName, lastName }, callback) => {
-            console.log("sendMessage chal gya", {
-                from: userId,
-                to: targetuserId,
-            });
+       socket.on(
+  "sendMessage",
+  async (
+    {
+      targetuserId,
+      text,
+      firstName,
+      lastName,
 
-            try {
-            /* ---------------- RATE LIMIT ---------------- */
-            const now = Date.now();
-            const userRateLimit =
-                messageRateLimit.get(userId) || { count: 0, resetTime: now + 60000 };
+      // ✅ NEW (for voice)
+      messageType,      // "text" | "audio"
+      audioUrl,         // string
+      audioDuration,    // number (seconds)
+    },
+    callback
+  ) => {
+    console.log("sendMessage chal gya", {
+      from: userId,
+      to: targetuserId,
+      type: messageType || "text",
+    });
 
-            if (now > userRateLimit.resetTime) {
-                userRateLimit.count = 0;
-                userRateLimit.resetTime = now + 60000;
-            }
+    try {
+      /* ---------------- RATE LIMIT ---------------- */
+      const now = Date.now();
+      const userRateLimit =
+        messageRateLimit.get(userId) || { count: 0, resetTime: now + 60000 };
 
-            if (userRateLimit.count >= 30) {
-                callback?.({
-                status: "error",
-                message: "Rate limit exceeded. Please slow down.",
-                });
-                return;
-            }
+      if (now > userRateLimit.resetTime) {
+        userRateLimit.count = 0;
+        userRateLimit.resetTime = now + 60000;
+      }
 
-            userRateLimit.count++;
-            messageRateLimit.set(userId, userRateLimit);
+      if (userRateLimit.count >= 30) {
+        callback?.({
+          status: "error",
+          message: "Rate limit exceeded. Please slow down.",
+        });
+        return;
+      }
 
-            /* ---------------- VALIDATION ---------------- */
-            if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
-                callback?.({ status: "error", message: "Invalid target user ID" });
-                return;
-            }
+      userRateLimit.count++;
+      messageRateLimit.set(userId, userRateLimit);
 
-            if (!text || typeof text !== "string" || text.trim().length === 0) {
-                callback?.({ status: "error", message: "Message cannot be empty" });
-                return;
-            }
+      /* ---------------- VALIDATION ---------------- */
+      if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
+        callback?.({ status: "error", message: "Invalid target user ID" });
+        return;
+      }
 
-            if (text.length > 1000) {
-                callback?.({
-                status: "error",
-                message: "Message too long (max 1000 characters)",
-                });
-                return;
-            }
+      const type = messageType || "text";
 
-            const roomId = [userId, targetuserId].sort().join("_");
-
-            /* ---------------- CHAT SAVE ---------------- */
-            let chat = await Chat.findOne({
-                participants: { $all: [userId, targetuserId] },
-            });
-
-            if (!chat) {
-                chat = new Chat({
-                participants: [userId, targetuserId],
-                messages: [],
-                });
-            }
-
-            chat.messages.push({
-                SenderId: userId,
-                text: text.trim(),
-            });
-
-            await chat.save();
-
-            const savedMessage = chat.messages[chat.messages.length - 1];
-
-            /* ---------------- EMIT MESSAGE ---------------- */
-            const socketsInRoom = await io.in(roomId).fetchSockets();
-
-            if (socketsInRoom.length === 0) {
-            console.log("No sockets in room:", roomId);
-            }
-            io.to(roomId).emit("receiveMessage", {
-                _id: savedMessage._id,
-                text: savedMessage.text,
-                senderId: savedMessage.SenderId,
-                createdAt: savedMessage.createdAt,
-                firstName,
-                lastName,
-            });
-
-            // ✅ CHECK IF RECEIVER IS ONLINE (DELIVERED)
-            const receiverSockets = userSockets.get(targetuserId);
-            console.log("Receiver sockets check:", {
-                targetuserId,
-                sockets: receiverSockets ? [...receiverSockets] : null,
-                size: receiverSockets?.size || 0,
-            });
-
-            if (receiverSockets && receiverSockets.size > 0) {
-            await Chat.updateOne(
-                {
-                _id: chat._id,
-                "messages._id": savedMessage._id,
-                },
-                {
-                $set: {
-                    "messages.$.status": "delivered",
-                },
-                }
-            );
-
-
-            // 🔔 Notify sender
-            const senderSockets = userSockets.get(userId);
-            if (senderSockets) {
-                for (const sid of senderSockets) {
-                io.to(sid).emit("message-delivered", {
-                    messageId: savedMessage._id,
-                });
-                }
-            }
-            }
-
-            /* ---------------- SUCCESS ACK ---------------- */
-            callback?.({
-                status: "sent",
-                messageId: savedMessage._id,
-                createdAt: savedMessage.createdAt,
-            });
-            } catch (err) {
-            console.error("❌ Message error:", err);
-
-            /* ---------------- ERROR ACK ---------------- */
-            callback?.({
-                status: "error",
-                message: "Failed to send message",
-            });
-            }
+      // ✅ text validation
+      if (type === "text") {
+        if (!text || typeof text !== "string" || text.trim().length === 0) {
+          callback?.({ status: "error", message: "Message cannot be empty" });
+          return;
         }
+        if (text.length > 1000) {
+          callback?.({
+            status: "error",
+            message: "Message too long (max 1000 characters)",
+          });
+          return;
+        }
+      }
+
+      // ✅ audio validation
+      if (type === "audio") {
+        if (!audioUrl || typeof audioUrl !== "string") {
+          callback?.({ status: "error", message: "Audio URL missing" });
+          return;
+        }
+        if (!audioDuration || typeof audioDuration !== "number") {
+          audioDuration = 0;
+        }
+      }
+
+      const roomId = [userId, targetuserId].sort().join("_");
+
+      /* ---------------- CHAT SAVE ---------------- */
+      let chat = await Chat.findOne({
+        participants: { $all: [userId, targetuserId] },
+      });
+
+      if (!chat) {
+        chat = new Chat({
+          participants: [userId, targetuserId],
+          messages: [],
+        });
+      }
+
+      // ✅ Push message
+      chat.messages.push({
+  SenderId: userId,
+  messageType: type,
+
+  text: type === "text" ? text.trim() : "",
+
+  audioUrl: type === "audio" ? audioUrl : null,
+  audioDuration: type === "audio" ? audioDuration : 0,
+
+  status: "sent",
+});
+
+
+      await chat.save();
+
+      const savedMessage = chat.messages[chat.messages.length - 1];
+
+      /* ---------------- EMIT MESSAGE ---------------- */
+      const socketsInRoom = await io.in(roomId).fetchSockets();
+
+      if (socketsInRoom.length === 0) {
+        console.log("⚠️ No sockets in room:", roomId);
+      }
+
+      io.to(roomId).emit("receiveMessage", {
+        _id: savedMessage._id,
+
+        // ✅ include both
+        text: savedMessage.text,
+        audioUrl: savedMessage.audioUrl,
+        audioDuration: savedMessage.audioDuration,
+        messageType: savedMessage.messageType,
+
+        senderId: savedMessage.SenderId,
+        createdAt: savedMessage.createdAt,
+        firstName,
+        lastName,
+      });
+
+      /* ---------------- DELIVERED CHECK ---------------- */
+      const receiverSockets = userSockets.get(targetuserId);
+
+      console.log("Receiver sockets check:", {
+        targetuserId,
+        sockets: receiverSockets ? [...receiverSockets] : null,
+        size: receiverSockets?.size || 0,
+      });
+
+      if (receiverSockets && receiverSockets.size > 0) {
+        await Chat.updateOne(
+          {
+            _id: chat._id,
+            "messages._id": savedMessage._id,
+          },
+          {
+            $set: {
+              "messages.$.status": "delivered",
+            },
+          }
         );
+
+        // 🔔 Notify sender about delivered
+        const senderSockets = userSockets.get(userId);
+        if (senderSockets) {
+          for (const sid of senderSockets) {
+            io.to(sid).emit("message-delivered", {
+              messageId: savedMessage._id,
+            });
+          }
+        }
+      }
+
+      /* ---------------- SUCCESS ACK ---------------- */
+      callback?.({
+        status: "sent",
+        messageId: savedMessage._id,
+        createdAt: savedMessage.createdAt,
+      });
+    } catch (err) {
+      console.error("❌ Message error FULL:", err);
+  console.error("❌ Message error MSG:", err.message);
+  console.error("❌ Message error STACK:", err.stack);
+
+  callback?.({
+    status: "error",
+    message: err.message || "Failed to send message",
+  });
+    }
+  }
+);
 
         // MARK MESSAGES AS READ
         socket.on("mark-messages-read", async ({ targetuserId }) => {

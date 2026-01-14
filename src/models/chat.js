@@ -10,7 +10,7 @@ const messageSchema = new mongoose.Schema(
 
     text: {
       type: String,
-      required: true,
+      default: "",
     },
     
     status: {
@@ -65,6 +65,23 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    audioUrl: {
+      type: String,
+      default: null,
+    },
+
+    audioDuration: {
+      type: Number, // seconds
+      default: 0,
+    },
+
+    messageType: {
+      type: String,
+      enum: ["text", "audio"],
+      default: "text",
+    },
+
 
   },
   {
