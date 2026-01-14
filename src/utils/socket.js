@@ -440,6 +440,142 @@ const socketCreation = (server) => {
             }
         });
 
+        // EDIT MESSAGE
+        socket.on("edit-message", async ({ chatId, messageId, newText }) => {
+            try {
+                if (!chatId || !messageId || !newText?.trim()) return;
+
+                const chat = await Chat.findById(chatId);
+                if (!chat) return;
+
+                const msg = chat.messages.id(messageId);
+                if (!msg) return;
+
+                // ✅ Only sender can edit
+                if (msg.SenderId.toString() !== socket.userId.toString()) return;
+
+                // ✅ If deleted for everyone -> no edit
+                if (msg.isDeletedForEveryone) return;
+
+                msg.text = newText.trim();
+                msg.isEdited = true;
+                msg.editedAt = new Date();
+
+                await chat.save();
+
+                // ✅ Notify both users
+                const roomId = chat.participants.map(x => x.toString()).sort().join("_");
+
+                io.to(roomId).emit("message-edited", {
+                messageId,
+                newText: msg.text,
+                editedAt: msg.editedAt,
+                });
+
+            } catch (err) {
+                console.error("❌ edit-message error:", err);
+            }
+        });
+
+        // ADD REACTION
+        socket.on("react-message", async ({ chatId, messageId, emoji }) => {
+            try {
+                if (!chatId || !messageId || !emoji) return;
+
+                const chat = await Chat.findById(chatId);
+                if (!chat) return;
+
+                const msg = chat.messages.id(messageId);
+                if (!msg) return;
+
+                if (!msg.reactions) msg.reactions = [];
+
+                const uid = socket.userId.toString();
+
+                // ✅ check if user already reacted
+                const existing = msg.reactions.find((r) => r.userId.toString() === uid);
+
+                // ✅ If same emoji clicked again -> remove reaction
+                if (existing && existing.emoji === emoji) {
+                msg.reactions = msg.reactions.filter((r) => r.userId.toString() !== uid);
+                } else {
+                // ✅ Replace reaction (remove old, add new)
+                msg.reactions = msg.reactions.filter((r) => r.userId.toString() !== uid);
+                msg.reactions.push({ userId: socket.userId, emoji });
+                }
+
+                await chat.save();
+
+                const roomId = chat.participants.map(x => x.toString()).sort().join("_");
+
+                io.to(roomId).emit("message-reacted", {
+                messageId,
+                reactions: msg.reactions,
+            });
+
+            } catch (err) {
+                console.error("❌ react-message error:", err);
+            }
+        });
+
+        // PIN MESSAGE
+        socket.on("pin-message", async ({ chatId, messageId }) => {
+            try {
+                if (!chatId || !messageId) return;
+
+                const chat = await Chat.findById(chatId);
+                if (!chat) return;
+
+                // ✅ unpin all messages first (only 1 pinned allowed)
+                chat.messages.forEach((m) => {
+                m.isPinned = false;
+                m.pinnedAt = null;
+                });
+
+                // ✅ pin selected message
+                const msg = chat.messages.id(messageId);
+                if (!msg) return;
+
+                msg.isPinned = true;
+                msg.pinnedAt = new Date();
+
+                await chat.save();
+
+                const roomId = chat.participants.map(x => x.toString()).sort().join("_");
+
+                io.to(roomId).emit("message-pinned", {
+                messageId,
+                pinnedAt: msg.pinnedAt,
+                text: msg.text,
+                });
+            } catch (err) {
+                console.error("❌ pin-message error:", err);
+            }
+        });
+
+        // UNPIN MESSAGE
+        socket.on("unpin-message", async ({ chatId }) => {
+        try {
+            if (!chatId) return;
+
+            const chat = await Chat.findById(chatId);
+            if (!chat) return;
+
+            chat.messages.forEach((m) => {
+            m.isPinned = false;
+            m.pinnedAt = null;
+            });
+
+            await chat.save();
+
+            const roomId = chat.participants.map(x => x.toString()).sort().join("_");
+
+            io.to(roomId).emit("message-unpinned", { chatId });
+        } catch (err) {
+            console.error("❌ unpin-message error:", err);
+        }
+        });
+
         // Handle disconnect
        socket.on("disconnect", async () => {
         if (!socket.userId) return;
