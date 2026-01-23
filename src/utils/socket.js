@@ -82,6 +82,7 @@ const socketCreation = (server) => {
                 throw new Error("Invalid token payload");
             }
             socket.userId = userId;
+            socket.data.userId = userId;
 
             // ✅ Track user -> socket mapping
             if (!userSockets.has(userId)) {
@@ -106,7 +107,6 @@ const socketCreation = (server) => {
             try {
                 await User.findByIdAndUpdate(userId, {
                     isOnline: true,
-                    lastSeen: null,
                 });
             } catch (err) {
                 console.error("Error updating user status:", err);
@@ -117,8 +117,9 @@ const socketCreation = (server) => {
             socket.broadcast.emit("updateUserStatus", {
                 userId,
                 isOnline: true,
-                lastSeen: null,
+                lastSeen: null, 
             });
+
         }
 
         // JOIN CHAT ROOM
@@ -146,14 +147,17 @@ const socketCreation = (server) => {
                 socket.join(roomId);
 
                 // Send presence immediately
+               // Send presence immediately
                 const target = await User.findById(targetuserId).select("isOnline lastSeen");
                 if (target) {
-                socket.emit("updateUserStatus", {
+                  socket.emit("updateUserStatus", {
                     userId: targetuserId,
                     isOnline: !!target.isOnline,
-                    lastSeen: target.lastSeen || null,
-                });
+                    // offline ho to lastSeen bhejo, online ho to null
+                    lastSeen: target.isOnline ? null : (target.lastSeen || null),
+                  });
                 }
+
 
                 callback?.({ status: "joined", roomId });
             } catch (err) {
@@ -170,13 +174,15 @@ const socketCreation = (server) => {
                     return;
                 }
                 const target = await User.findById(targetId).select("isOnline lastSeen");
-                if (target) {
-                    socket.emit("updateUserStatus", {
-                        userId: targetId,
-                        isOnline: !!target.isOnline,
-                        lastSeen: target.lastSeen || null,
-                    });
+                  if (target) {
+                      socket.emit("updateUserStatus", {
+                      userId: targetId,
+                      isOnline: !!target.isOnline,
+                      // ✅ offline ho to lastSeen bhejo, online ho to null
+                      lastSeen: target.isOnline ? null : (target.lastSeen || null),
+                  });
                 }
+
             } catch (e) {
                 console.error("Presence fetch error:", e);
                 socket.emit("error", { message: "Failed to fetch presence" });
@@ -184,161 +190,190 @@ const socketCreation = (server) => {
         });
 
         // SEND MESSAGE
-       socket.on(
-  "sendMessage",
-  async (
-    {
-      targetuserId,
-      text,
-      firstName,
-      lastName,
+      socket.on("sendMessage", async (
+          {
+            targetuserId,
+            text,
+            firstName,
+            lastName,
 
-      // ✅ NEW (for voice)
-      messageType,      // "text" | "audio"
-      audioUrl,         // string
-      audioDuration,    // number (seconds)
-    },
-    callback
-  ) => {
-    console.log("sendMessage chal gya", {
-      from: userId,
-      to: targetuserId,
-      type: messageType || "text",
-    });
-
-    try {
-      /* ---------------- RATE LIMIT ---------------- */
-      const now = Date.now();
-      const userRateLimit =
-        messageRateLimit.get(userId) || { count: 0, resetTime: now + 60000 };
-
-      if (now > userRateLimit.resetTime) {
-        userRateLimit.count = 0;
-        userRateLimit.resetTime = now + 60000;
-      }
-
-      if (userRateLimit.count >= 30) {
-        callback?.({
-          status: "error",
-          message: "Rate limit exceeded. Please slow down.",
-        });
-        return;
-      }
-
-      userRateLimit.count++;
-      messageRateLimit.set(userId, userRateLimit);
-
-      /* ---------------- VALIDATION ---------------- */
-      if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
-        callback?.({ status: "error", message: "Invalid target user ID" });
-        return;
-      }
-
-      const type = messageType || "text";
-
-      // ✅ text validation
-      if (type === "text") {
-        if (!text || typeof text !== "string" || text.trim().length === 0) {
-          callback?.({ status: "error", message: "Message cannot be empty" });
-          return;
-        }
-        if (text.length > 1000) {
-          callback?.({
-            status: "error",
-            message: "Message too long (max 1000 characters)",
+            // voice
+            messageType,      // "text" | "audio"
+            audioUrl,         // string
+            audioDuration,    // number (seconds)
+            mediaUrl,
+            mediaType,
+            fileName,
+            fileSize,
+            mediaPublicId,
+          },
+          callback
+        ) => {
+          console.log("sendMessage chal gya", {
+            from: userId,
+            to: targetuserId,
+            type: messageType || "text",
           });
-          return;
-        }
-      }
 
-      // ✅ audio validation
-      if (type === "audio") {
-        if (!audioUrl || typeof audioUrl !== "string") {
-          callback?.({ status: "error", message: "Audio URL missing" });
-          return;
-        }
-        if (!audioDuration || typeof audioDuration !== "number") {
-          audioDuration = 0;
-        }
-      }
+          try {
+            /* ---------------- RATE LIMIT ---------------- */
+            const now = Date.now();
+            const userRateLimit =
+              messageRateLimit.get(userId) || { count: 0, resetTime: now + 60000 };
 
-      const roomId = [userId, targetuserId].sort().join("_");
+            if (now > userRateLimit.resetTime) {
+              userRateLimit.count = 0;
+              userRateLimit.resetTime = now + 60000;
+            }
 
-      /* ---------------- CHAT SAVE ---------------- */
-      let chat = await Chat.findOne({
-        participants: { $all: [userId, targetuserId] },
-      });
+            if (userRateLimit.count >= 30) {
+              callback?.({
+                status: "error",
+                message: "Rate limit exceeded. Please slow down.",
+              });
+              return;
+            }
 
-      if (!chat) {
-        chat = new Chat({
-          participants: [userId, targetuserId],
-          messages: [],
-        });
-      }
+            userRateLimit.count++;
+            messageRateLimit.set(userId, userRateLimit);
 
-      // ✅ Push message
-      chat.messages.push({
-  SenderId: userId,
-  messageType: type,
+            /* ---------------- VALIDATION ---------------- */
+            if (!targetuserId || !targetuserId.match(/^[0-9a-fA-F]{24}$/)) {
+              callback?.({ status: "error", message: "Invalid target user ID" });
+              return;
+            }
 
-  text: type === "text" ? text.trim() : "",
+            const type = messageType || "text";
 
-  audioUrl: type === "audio" ? audioUrl : null,
-  audioDuration: type === "audio" ? audioDuration : 0,
+            // ✅ text validation
+            if (type === "text") {
+              if (!text || typeof text !== "string" || text.trim().length === 0) {
+                callback?.({ status: "error", message: "Message cannot be empty" });
+                return;
+              }
+              if (text.length > 1000) {
+                callback?.({
+                  status: "error",
+                  message: "Message too long (max 1000 characters)",
+                });
+                return;
+              }
+            }
 
-  status: "sent",
-});
+            // ✅ audio validation
+            if (type === "audio") {
+              if (!audioUrl || typeof audioUrl !== "string") {
+                callback?.({ status: "error", message: "Audio URL missing" });
+                return;
+              }
+            }
+
+            if (type === "media") {
+              if (!mediaUrl || typeof mediaUrl !== "string") {
+                callback?.({ status: "error", message: "Media URL missing" });
+                return;
+              }
+            }
 
 
-      await chat.save();
+            // ✅ safe audio duration (fix const reassignment bug)
+            const safeAudioDuration =
+              typeof audioDuration === "number" && audioDuration > 0
+                ? audioDuration
+                : 0;
 
-      const savedMessage = chat.messages[chat.messages.length - 1];
+            const roomId = [userId, targetuserId].sort().join("_");
 
-      /* ---------------- EMIT MESSAGE ---------------- */
+            /* ---------------- CHAT SAVE ---------------- */
+            let chat = await Chat.findOne({
+              participants: { $all: [userId, targetuserId] },
+            });
+
+            if (!chat) {
+              chat = new Chat({
+                participants: [userId, targetuserId],
+                messages: [],
+              });
+            }
+
+            // ✅ Push message
+            chat.messages.push({
+              SenderId: userId,
+              messageType: type,
+
+              text: type === "text" ? text.trim() : "",
+
+              audioUrl: type === "audio" ? audioUrl : null,
+              audioDuration: type === "audio" ? safeAudioDuration : 0,
+              mediaUrl: type === "media" ? mediaUrl : null,
+              mediaType: type === "media" ? mediaType : null,
+              fileName: type === "media" ? fileName : null,
+              fileSize: type === "media" ? fileSize : 0,
+              mediaPublicId: type === "media" ? mediaPublicId : null,
+
+              status: "sent",
+            });
+
+            await chat.save();
+
+            const savedMessage = chat.messages[chat.messages.length - 1];
+
+            /* ---------------- PAYLOAD ---------------- */
+            const payload = {
+              _id: savedMessage._id,
+
+              text: savedMessage.text,
+              audioUrl: savedMessage.audioUrl,
+              audioDuration: savedMessage.audioDuration,
+              messageType: savedMessage.messageType,
+              senderId: savedMessage.SenderId,
+              mediaUrl: savedMessage.mediaUrl,
+              mediaType: savedMessage.mediaType,
+              fileName: savedMessage.fileName,
+              fileSize: savedMessage.fileSize,
+              createdAt: savedMessage.createdAt,
+
+              firstName,
+              lastName,
+            };
+
+            /* ---------------- EMIT MESSAGE ---------------- */
+            // 1) Room emit (works if both joined)
+          io.to(roomId).emit("receiveMessage", payload);
+
+      // Check if someone is actually in room (receiver may not have joined)
       const socketsInRoom = await io.in(roomId).fetchSockets();
 
-      if (socketsInRoom.length === 0) {
-        console.log("⚠️ No sockets in room:", roomId);
-      }
-
-      io.to(roomId).emit("receiveMessage", {
-        _id: savedMessage._id,
-
-        // ✅ include both
-        text: savedMessage.text,
-        audioUrl: savedMessage.audioUrl,
-        audioDuration: savedMessage.audioDuration,
-        messageType: savedMessage.messageType,
-
-        senderId: savedMessage.SenderId,
-        createdAt: savedMessage.createdAt,
-        firstName,
-        lastName,
-      });
-
-      /* ---------------- DELIVERED CHECK ---------------- */
       const receiverSockets = userSockets.get(targetuserId);
 
       console.log("Receiver sockets check:", {
         targetuserId,
         sockets: receiverSockets ? [...receiverSockets] : null,
         size: receiverSockets?.size || 0,
+        socketsInRoom: socketsInRoom.length,
       });
 
+      // ✅ check if receiver is in room (via socket.data.userId)
+      const receiverInRoom = socketsInRoom.some(
+        (s) => s.data?.userId === targetuserId
+      );
+
+      // ✅ if receiver is online but NOT in room -> direct emit
+      if (receiverSockets && receiverSockets.size > 0 && !receiverInRoom) {
+        for (const sid of receiverSockets) {
+          io.to(sid).emit("receiveMessage", payload);
+        }
+      }
+
+      /* ---------------- DELIVERED CHECK ---------------- */
+      // If receiver online (has sockets) -> mark delivered + notify sender
       if (receiverSockets && receiverSockets.size > 0) {
         await Chat.updateOne(
-          {
-            _id: chat._id,
-            "messages._id": savedMessage._id,
-          },
-          {
-            $set: {
-              "messages.$.status": "delivered",
-            },
-          }
+          { _id: chat._id, "messages._id": savedMessage._id },
+          { $set: { "messages.$.status": "delivered" } }
         );
 
-        // 🔔 Notify sender about delivered
+        // 🔔 Notify sender (even if sender has multiple tabs)
         const senderSockets = userSockets.get(userId);
         if (senderSockets) {
           for (const sid of senderSockets) {
@@ -357,16 +392,17 @@ const socketCreation = (server) => {
       });
     } catch (err) {
       console.error("❌ Message error FULL:", err);
-  console.error("❌ Message error MSG:", err.message);
-  console.error("❌ Message error STACK:", err.stack);
+      console.error("❌ Message error MSG:", err.message);
+      console.error("❌ Message error STACK:", err.stack);
 
-  callback?.({
-    status: "error",
-    message: err.message || "Failed to send message",
-  });
+      callback?.({
+        status: "error",
+        message: err.message || "Failed to send message",
+      });
     }
   }
 );
+
 
         // MARK MESSAGES AS READ
         socket.on("mark-messages-read", async ({ targetuserId }) => {
@@ -625,40 +661,45 @@ const socketCreation = (server) => {
         });
 
         // Handle disconnect
-       socket.on("disconnect", async () => {
-        if (!socket.userId) return;
+      socket.on("disconnect", async () => {
+  if (!socket.userId) return;
 
-        // remove socket from userSockets
-        const sockets = userSockets.get(socket.userId);
-        if (sockets) {
-            sockets.delete(socket.id);
-            if (sockets.size === 0) {
-            userSockets.delete(socket.userId);
-            }
-        }
+  // remove socket from userSockets
+  const sockets = userSockets.get(socket.userId);
+  if (sockets) {
+    sockets.delete(socket.id);
+    if (sockets.size === 0) {
+      userSockets.delete(socket.userId);
+    }
+  }
 
-        const current = userConnectionCounts.get(socket.userId) || 1;
-        const remaining = Math.max(0, current - 1);
+  const current = userConnectionCounts.get(socket.userId) || 1;
+  const remaining = Math.max(0, current - 1);
 
-        if (remaining === 0) {
-            userConnectionCounts.delete(socket.userId);
+  if (remaining === 0) {
+    userConnectionCounts.delete(socket.userId);
 
-            const lastSeen = new Date();
+    const lastSeen = new Date();
 
-            await User.findByIdAndUpdate(socket.userId, {
-            isOnline: false,
-            lastSeen,
-            });
+    try {
+      await User.findByIdAndUpdate(socket.userId, {
+        isOnline: false,
+        lastSeen,
+      });
+    } catch (err) {
+      console.error("❌ Error updating offline lastSeen:", err);
+    }
 
-            socket.broadcast.emit("updateUserStatus", {
-            userId: socket.userId,
-            isOnline: false,
-            lastSeen,
-            });
-        } else {
-            userConnectionCounts.set(socket.userId, remaining);
-        }
-        });
+    socket.broadcast.emit("updateUserStatus", {
+      userId: socket.userId,
+      isOnline: false,
+      lastSeen,
+    });
+  } else {
+    userConnectionCounts.set(socket.userId, remaining);
+  }
+});
+
 
     });
     

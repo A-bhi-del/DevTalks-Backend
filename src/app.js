@@ -31,6 +31,7 @@ const chatRouter = require("./routes/chatrouter.js");
 const notificationRouter = require("./routes/notification.js");
 const signalingRouter = require("./routes/signaling.js");
 const uploadRouter = require("./routes/upload.js");
+const router = require("./routes/mediaUpload.js")
 
 chatRouter.use((req, res, next) => {
   console.log("Chat Router hit for:", req.method, req.originalUrl);
@@ -45,7 +46,7 @@ app.use("/", chatRouter);
 app.use("/", notificationRouter);
 app.use("/", signalingRouter);
 app.use("/", uploadRouter);
-
+app.use("/", router);
 
 const server = http.createServer(app);
 socketCreation(server);

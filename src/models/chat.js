@@ -72,13 +72,40 @@ const messageSchema = new mongoose.Schema(
     },
 
     audioDuration: {
-      type: Number, // seconds
+      type: Number, 
       default: 0,
+    },
+    
+    // media support
+    mediaUrl: {
+      type: String,
+      default: null,
+    },
+
+    mediaType: {
+      type: String,
+      enum: ["image", "video", "file"],
+      default: null,
+    },
+
+    fileName: {
+      type: String,
+      default: null,
+    },
+
+    fileSize: {
+      type: Number,
+      default: 0,
+    },
+
+    mediaPublicId: {
+      type: String,
+      default: null,
     },
 
     messageType: {
       type: String,
-      enum: ["text", "audio"],
+      enum: ["text", "audio", "media"],
       default: "text",
     },
 
