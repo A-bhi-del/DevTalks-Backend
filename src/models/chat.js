@@ -8,48 +8,23 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
 
-    text: {
-      type: String,
-      default: "",
-    },
-    
+    text: { type: String, default: "" },
+
     status: {
       type: String,
       enum: ["sent", "delivered", "read"],
       default: "sent",
     },
 
-    readAt: {
-      type: Date,
-      default: null,
-    },
+    readAt: { type: Date, default: null },
 
-     deletedFor: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
+    deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
-    isDeletedForEveryone: {
-      type: Boolean,
-      default: false,
-    },
+    isDeletedForEveryone: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
 
-    deletedAt: {
-      type: Date,
-      default: null,
-    },
-
-    isEdited: {
-      type: Boolean,
-      default: false,
-    },
-
-    editedAt: {
-      type: Date,
-      default: null,
-    },
+    isEdited: { type: Boolean, default: false },
+    editedAt: { type: Date, default: null },
 
     reactions: [
       {
@@ -57,68 +32,46 @@ const messageSchema = new mongoose.Schema(
         emoji: { type: String },
       },
     ],
-    isPinned: {
-      type: Boolean,
-      default: false,
-    },
-    pinnedAt: {
-      type: Date,
-      default: null,
-    },
 
-    audioUrl: {
-      type: String,
-      default: null,
-    },
+    isPinned: { type: Boolean, default: false },
+    pinnedAt: { type: Date, default: null },
 
-    audioDuration: {
-      type: Number, 
-      default: 0,
-    },
-    
-    // media support
-    mediaUrl: {
-      type: String,
-      default: null,
-    },
+    // ✅ Audio
+    audioUrl: { type: String, default: null },
+    audioDuration: { type: Number, default: 0 },
 
+    // ✅ Media
+    mediaUrl: { type: String, default: null },
     mediaType: {
       type: String,
       enum: ["image", "video", "file"],
-      default: null,
+      default: undefined, // ✅ important: null mat dena
     },
+    fileName: { type: String, default: null },
+    fileSize: { type: Number, default: 0 },
+    mediaPublicId: { type: String, default: null },
 
-    fileName: {
-      type: String,
-      default: null,
-    },
-
-    fileSize: {
-      type: Number,
-      default: 0,
-    },
-
-    mediaPublicId: {
-      type: String,
-      default: null,
-    },
-
+    // ✅ Message Type
     messageType: {
       type: String,
       enum: ["text", "audio", "media"],
       default: "text",
     },
-
-
   },
-  {
-    timestamps: true, 
-    strict: true
-  }
+  { timestamps: true, strict: true }
 );
 
 const chatSchema = new mongoose.Schema(
   {
+    // ✅ group support
+    isGroup: { type: Boolean, default: false },
+
+    groupInfo: {
+      name: { type: String, default: "" },
+      photoUrl: { type: String, default: "" },
+      admin: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    },
+
     participants: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -129,13 +82,9 @@ const chatSchema = new mongoose.Schema(
 
     messages: [messageSchema],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 const Chat = mongoose.model("Chat", chatSchema);
 
-module.exports = {
-  Chat,
-};
+module.exports = { Chat };

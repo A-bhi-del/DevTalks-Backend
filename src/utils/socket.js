@@ -166,6 +166,31 @@ const socketCreation = (server) => {
             }
         });
 
+        socket.on("joinGroup", async ({ groupId }, callback) => {
+  try {
+    const chat = await Chat.findById(groupId);
+
+    if (!chat || !chat.isGroup) {
+      return callback?.({ status: "error", message: "Group not found" });
+    }
+
+    const isMember = chat.participants.some(
+      (p) => p.toString() === socket.userId.toString()
+    );
+
+    if (!isMember) {
+      return callback?.({ status: "error", message: "Not a member" });
+    }
+
+    socket.join(groupId);
+    callback?.({ status: "joined", roomId: groupId });
+  } catch (err) {
+    console.error("joinGroup error:", err);
+    callback?.({ status: "error", message: "Join group failed" });
+  }
+});
+
+
         //  Get presence fallback
         socket.on("getPresence", async ({ userId: targetId }) => {
             try {
@@ -296,20 +321,21 @@ const socketCreation = (server) => {
               });
             }
 
-            // ✅ Push message
+            // Push message
             chat.messages.push({
               SenderId: userId,
               messageType: type,
 
               text: type === "text" ? text.trim() : "",
 
-              audioUrl: type === "audio" ? audioUrl : null,
+              audioUrl: type === "audio" ? audioUrl : undefined,
               audioDuration: type === "audio" ? safeAudioDuration : 0,
-              mediaUrl: type === "media" ? mediaUrl : null,
-              mediaType: type === "media" ? mediaType : null,
-              fileName: type === "media" ? fileName : null,
+
+              mediaUrl: type === "media" ? mediaUrl : undefined,
+              mediaType: type === "media" ? mediaType : undefined,
+              fileName: type === "media" ? fileName : undefined,
               fileSize: type === "media" ? fileSize : 0,
-              mediaPublicId: type === "media" ? mediaPublicId : null,
+              mediaPublicId: type === "media" ? mediaPublicId : undefined,
 
               status: "sent",
             });
@@ -402,6 +428,90 @@ const socketCreation = (server) => {
     }
   }
 );
+
+socket.on("sendGroupMessage", async (data, callback) => {
+  try {
+    const {
+      groupId,
+      text,
+      firstName,
+      lastName,
+      messageType,
+      audioUrl,
+      audioDuration,
+      mediaUrl,
+      mediaType,
+      fileName,
+      fileSize,
+      mediaPublicId,
+    } = data;
+
+    const chat = await Chat.findById(groupId);
+    if (!chat || !chat.isGroup) {
+      return callback?.({ status: "error", message: "Group not found" });
+    }
+
+    const isMember = chat.participants.some(
+      (p) => p.toString() === socket.userId.toString()
+    );
+
+    if (!isMember) {
+      return callback?.({ status: "error", message: "Not a member" });
+    }
+
+    const type = messageType || "text";
+
+    chat.messages.push({
+      SenderId: socket.userId,
+      messageType: type,
+      text: type === "text" ? text.trim() : "",
+      audioUrl: type === "audio" ? audioUrl : undefined,
+      audioDuration: type === "audio" ? audioDuration : 0,
+      mediaUrl: type === "media" ? mediaUrl : undefined,
+      mediaType: type === "media" ? mediaType : undefined,
+      fileName: type === "media" ? fileName : undefined,
+      fileSize: type === "media" ? fileSize : 0,
+      mediaPublicId: type === "media" ? mediaPublicId : undefined,
+      status: "sent",
+    });
+
+    await chat.save();
+
+    const savedMessage = chat.messages[chat.messages.length - 1];
+
+    const payload = {
+      _id: savedMessage._id,
+      senderId: savedMessage.SenderId,
+      text: savedMessage.text,
+
+      messageType: savedMessage.messageType,
+      audioUrl: savedMessage.audioUrl,
+      audioDuration: savedMessage.audioDuration,
+
+      mediaUrl: savedMessage.mediaUrl,
+      mediaType: savedMessage.mediaType,
+      fileName: savedMessage.fileName,
+      fileSize: savedMessage.fileSize,
+
+      createdAt: savedMessage.createdAt,
+      firstName,
+      lastName,
+
+      groupId,
+    };
+
+    io.to(groupId).emit("receiveGroupMessage", payload);
+
+    callback?.({
+      status: "sent",
+      messageId: savedMessage._id,
+      createdAt: savedMessage.createdAt,
+    });
+  } catch (err) {
+    console.error("sendGroupMessage error:", err);
+    callback?.({ status: "error", message: "Failed" });
+  }
+});
 
 
         // MARK MESSAGES AS READ

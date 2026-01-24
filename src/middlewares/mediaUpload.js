@@ -1,4 +1,5 @@
 const multer = require("multer");
+const path = require("path"); // ✅ add this
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("../config/cloudinary");
 
@@ -6,13 +7,14 @@ const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
     const mime = file.mimetype || "";
+    const ext = path.extname(file.originalname || ""); // ✅ define ext
 
     // ✅ images
     if (mime.startsWith("image/")) {
       return {
         folder: "devtalks/media",
         resource_type: "image",
-        public_id: `img-${Date.now()}`,
+        public_id: `img-${Date.now()}${ext}`,
       };
     }
 
@@ -21,15 +23,24 @@ const storage = new CloudinaryStorage({
       return {
         folder: "devtalks/media",
         resource_type: "video",
-        public_id: `vid-${Date.now()}`,
+        public_id: `vid-${Date.now()}${ext}`,
       };
     }
 
-    // ✅ other files (pdf etc) -> must be "raw"
+    // ✅ pdf (raw)
+    if (mime === "application/pdf") {
+      return {
+        folder: "devtalks/files",
+        resource_type: "raw",
+        public_id: `pdf-${Date.now()}${ext || ".pdf"}`, // ✅ force pdf ext
+      };
+    }
+
+    // ✅ other files
     return {
       folder: "devtalks/files",
       resource_type: "raw",
-      public_id: `file-${Date.now()}`,
+      public_id: `file-${Date.now()}${ext}`,
     };
   },
 });
