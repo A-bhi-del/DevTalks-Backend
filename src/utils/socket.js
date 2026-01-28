@@ -3,6 +3,16 @@ const { Chat } = require("../models/chat");
 const { connectionRequest } = require("../models/connection");
 const User = require("../models/user");
 const jwt = require("jsonwebtoken");
+const {
+  joinRoom,
+  createTransport,
+  connectTransport,
+  produce,
+  consume,
+  messageInRoom,
+  exitRoom,
+  disconnect
+} = require("./signaling");
 
 const userConnectionCounts = new Map();
 const messageRateLimit = new Map(); // Rate limiting for messages
@@ -26,6 +36,7 @@ const socketCreation = (server) => {
     const io = new Server(server, {
         cors: {
             origin: [
+                'https://buying-auctions-renewable-partnership.trycloudflare.com',
                 "https://dev-talks-frontend-5f7l.vercel.app",
                 "https://dev-talks-frontend-5f7l-rcypxnt4l-a-bhi-dels-projects.vercel.app", 
                 "http://localhost:5173",
@@ -81,8 +92,13 @@ const socketCreation = (server) => {
             if (!userId || !userId.match(/^[0-9a-fA-F]{24}$/)) {
                 throw new Error("Invalid token payload");
             }
-            socket.userId = userId;
-            socket.data.userId = userId;
+            socket.userId = decoded._id.toString();
+
+            // ADD THIS LINE - Critical for private events like incoming-call
+            socket.join(socket.userId.toString());
+
+            // // 🟢 ADD THIS LINE HERE:
+            // socket.join(userId.toString());
 
             // ✅ Track user -> socket mapping
             if (!userSockets.has(userId)) {
@@ -810,10 +826,44 @@ socket.on("sendGroupMessage", async (data, callback) => {
   }
 });
 
+      socket.on("joinRoom", async ({ roomId, userId}, callback) => {
+            await joinRoom({ roomId, userId}, socket, callback);
+        });
+    
+        socket.on("createTransport", async ({ roomId }, callback) => {
+            await createTransport({ roomId }, socket, callback);
+        });
+    
+        socket.on("connectTransport", ({ transportId, dtlsParameters }) => {
+            connectTransport({ transportId, dtlsParameters }, socket);
+        });
+    
+        socket.on("produce", async ({ roomId, transportId, kind, rtpParameters }, callback)=>{
+            await produce({ roomId, transportId, kind, rtpParameters }, socket, callback);
+        });
+    
+        socket.on("consume", async ({ roomId, producerId, transportId, rtpCapabilities }, callback) =>{
+            await consume({ roomId, producerId, transportId, rtpCapabilities }, socket, callback);
+        });
+
+        socket.on('message', async ({roomId, message, username}) => {
+            await messageInRoom({roomId, message, username}, socket);
+        })
+    
+        socket.on("exitRoom", ({ roomId, producerIds })=>{
+            exitRoom({ roomId, producerIds }, socket);
+        });
+    
+        socket.on("disconnect", ()=>{
+            disconnect(socket);
+        });
+
 
     });
     
+    global.io = io;
     return io;
+;
 };
 
 module.exports = socketCreation;

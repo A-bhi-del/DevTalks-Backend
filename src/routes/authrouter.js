@@ -24,18 +24,24 @@ authRouter.post("/signup", async (req, res) => {
 
         const savedUser = await user.save();
         const token = await savedUser.getJWT();
-        
-        // Cookie settings based on environment
+
+        // Cookie settings based on environment or HTTPS origin
+        // USE secure + sameSite: none when:
+        // 1. NODE_ENV is production, OR
+        // 2. Request comes from HTTPS origin (e.g., Cloudflare tunnel)
+        const origin = req.headers.origin || req.headers.referer || '';
+        const isHttpsOrigin = origin.startsWith('https://');
         const isProduction = process.env.NODE_ENV === 'production';
-        
+        const needsCrossOriginCookies = isProduction || isHttpsOrigin;
+
         const cookieOptions = {
             httpOnly: true,
             expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
         };
-        
-        // For production (deployed): use secure + sameSite: none (for cross-origin)
+
+        // For cross-origin HTTPS requests: use secure + sameSite: none
         // For localhost: use sameSite: lax (works with http://localhost)
-        if (isProduction) {
+        if (needsCrossOriginCookies) {
             cookieOptions.secure = true;
             cookieOptions.sameSite = 'none';
         } else {
@@ -43,7 +49,7 @@ authRouter.post("/signup", async (req, res) => {
             cookieOptions.secure = false;
             cookieOptions.sameSite = 'lax';
         }
-        
+
         console.log("🍪 Setting cookie with options:", cookieOptions);
         res.cookie("token", token, cookieOptions);
 
@@ -71,18 +77,24 @@ authRouter.post("/login", async (req, res) => {
         const passwordisValid = await user.validatePassword(password);
         if (passwordisValid) {
             const token = await user.getJWT();
-            
-            // Cookie settings based on environment
+
+            // Cookie settings based on environment or HTTPS origin
+            // USE secure + sameSite: none when:
+            // 1. NODE_ENV is production, OR
+            // 2. Request comes from HTTPS origin (e.g., Cloudflare tunnel)
+            const origin = req.headers.origin || req.headers.referer || '';
+            const isHttpsOrigin = origin.startsWith('https://');
             const isProduction = process.env.NODE_ENV === 'production';
-            
+            const needsCrossOriginCookies = isProduction || isHttpsOrigin;
+
             const cookieOptions = {
                 httpOnly: true,
                 expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
             };
-            
-            // For production (deployed): use secure + sameSite: none (for cross-origin)
+
+            // For cross-origin HTTPS requests: use secure + sameSite: none
             // For localhost: use sameSite: lax (works with http://localhost)
-            if (isProduction) {
+            if (needsCrossOriginCookies) {
                 cookieOptions.secure = true;
                 cookieOptions.sameSite = 'none';
             } else {
@@ -90,7 +102,7 @@ authRouter.post("/login", async (req, res) => {
                 cookieOptions.secure = false;
                 cookieOptions.sameSite = 'lax';
             }
-            
+
             console.log("🍪 Setting cookie with options:", cookieOptions);
             res.cookie("token", token, cookieOptions);
 
@@ -119,7 +131,7 @@ authRouter.post("/logout", async (req, res) => {
 authRouter.post("/refresh-token", async (req, res) => {
     try {
         const { token: oldToken } = req.cookies;
-        
+
         if (!oldToken) {
             return res.status(401).json({ message: "No token found" });
         }
@@ -145,23 +157,28 @@ authRouter.post("/refresh-token", async (req, res) => {
 
         // Generate new token with current secret
         const newToken = await user.getJWT();
-        
+
+        // Cookie settings based on environment or HTTPS origin
+        const origin = req.headers.origin || req.headers.referer || '';
+        const isHttpsOrigin = origin.startsWith('https://');
         const isProduction = process.env.NODE_ENV === 'production';
+        const needsCrossOriginCookies = isProduction || isHttpsOrigin;
+
         const cookieOptions = {
             httpOnly: true,
             expires: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
         };
-        
-        if (isProduction) {
+
+        if (needsCrossOriginCookies) {
             cookieOptions.secure = true;
             cookieOptions.sameSite = 'none';
         } else {
             cookieOptions.secure = false;
             cookieOptions.sameSite = 'lax';
         }
-        
+
         res.cookie("token", newToken, cookieOptions);
-        
+
         res.json({
             message: "Token refreshed successfully",
             data: user
@@ -176,14 +193,14 @@ authRouter.post("/refresh-token", async (req, res) => {
 authRouter.get("/test-token", async (req, res) => {
     try {
         const { token } = req.cookies;
-        
+
         if (!token) {
             return res.status(401).json({ message: "No token found" });
         }
 
         let decoded;
         let secretUsed = "unknown";
-        
+
         try {
             decoded = await jwt.verify(token, process.env.JWT_SECRET);
             secretUsed = "new";
